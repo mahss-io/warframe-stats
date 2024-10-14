@@ -1,0 +1,64 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Device is already configured"
+        },
+        "error": {
+            "cannot_connect": "Failed to connect",
+            "invalid_auth": "Invalid authentication",
+            "unknown": "Unexpected error"
+        },
+        "step": {
+            "profiles": {
+                "data": {
+                    "credits": "Track Total Credits",
+                    "death": "Track Deaths",
+                    "most_scans": "Track Most Scans",
+                    "most_used_companion": "Track Most Used Companion",
+                    "most_used_melee": "Track Most Used Melee",
+                    "most_used_primary": "Track Most Used Primary",
+                    "most_used_seondary": "Track Most Used Secondary",
+                    "most_used_warframe": "Track Most Used Warframe",
+                    "rank": "Track Mastery Rank",
+                    "star_chart_completion": "Track Star Chart Completion",
+                    "time_played": "Track Play Time",
+                    "total_abilities_used": "Track Total Abilities Used",
+                    "total_enemies_killed": "Track Enemies Killed",
+                    "usernames": "Username of Warframe profile to track"
+                }
+            },
+            "static_items": {
+                "data": {
+                    "newest_warframe": "Track Newest Warframe",
+                    "total_items": "Track Total Items",
+                    "total_prime_items": "Track Total Primed Items"
+                }
+            },
+            "user": {
+                "data": {
+                    "profiles": "Pull User Profile Statistics?",
+                    "static_items": "Pull Static Item Statistics?",
+                    "worldstates": "Pull Worldstate Statistics?"
+                },
+                "title": "test title"
+            },
+            "worldstates": {
+                "data": {
+                    "alerts": "Track Alerts",
+                    "archon_hunt": "Track Current Archon Hunt Rotation",
+                    "deep_archimedea": "Track Current Deep Archimedea Rotation",
+                    "earth_time": "Track Earth Time",
+                    "events": "Track Current Events",
+                    "fissures": "Track Current Fissures",
+                    "invasions": "Track Current Invasions",
+                    "open_worlds": "Track Open World States",
+                    "relay_events": "Track Relay Events",
+                    "sorties": "Track Current Sortie Rotation",
+                    "steel_path": "Track Steel Path Incurssions",
+                    "varzia": "Track Varsia Infromation",
+                    "void_trader": "Track Void Trader Infromation"
+                }
+            }
+        }
+    }
+}

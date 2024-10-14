@@ -1,0 +1,16 @@
+{
+  "domain": "warframe",
+  "name": "Warframe Stats",
+  "codeowners": [
+    "@mahss-io"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://www.home-assistant.io/integrations/warframe",
+  "homekit": {},
+  "iot_class": "cloud_polling",
+  "requirements": [],
+  "ssdp": [],
+  "zeroconf": [],
+  "single_config_entry": true
+}

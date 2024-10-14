@@ -1,0 +1,64 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "test title",
+        "data": {
+          "worldstates": "Pull Worldstate Statistics?",
+          "profiles": "Pull User Profile Statistics?",
+          "static_items": "Pull Static Item Statistics?"
+        }
+      },
+      "worldstates": {
+        "data": {
+          "alerts": "Track Alerts",
+          "archon_hunt": "Track Current Archon Hunt Rotation",
+          "open_worlds": "Track Open World States",
+          "relay_events": "Track Relay Events",
+          "deep_archimedea": "Track Current Deep Archimedea Rotation",
+          "earth_time": "Track Earth Time",
+          "events": "Track Current Events",
+          "fissures": "Track Current Fissures",
+          "invasions": "Track Current Invasions",
+          "sorties": "Track Current Sortie Rotation",
+          "steel_path": "Track Steel Path Incurssions",
+          "void_trader": "Track Void Trader Infromation",
+          "varzia": "Track Varsia Infromation"
+        }
+      },
+      "profiles": {
+        "data": {
+          "usernames": "Username of Warframe profile to track",
+          "total_abilities_used": "Track Total Abilities Used",
+          "total_enemies_killed": "Track Enemies Killed",
+          "most_scans": "Track Most Scans",
+          "most_used_warframe": "Track Most Used Warframe",
+          "most_used_primary": "Track Most Used Primary",
+          "most_used_seondary": "Track Most Used Secondary",
+          "most_used_melee": "Track Most Used Melee",
+          "most_used_companion": "Track Most Used Companion",
+          "credits": "Track Total Credits",
+          "rank": "Track Mastery Rank",
+          "death": "Track Deaths",
+          "time_played": "Track Play Time",
+          "star_chart_completion": "Track Star Chart Completion"
+        }
+      },
+      "static_items": {
+        "data": {
+          "total_items": "Track Total Items",
+          "total_prime_items": "Track Total Primed Items",
+          "newest_warframe": "Track Newest Warframe"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+      "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
+      "unknown": "[%key:common::config_flow::error::unknown%]"
+    },
+    "abort": {
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+    }
+  }
+}
