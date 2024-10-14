@@ -27,6 +27,13 @@ _LOGGER = logging.getLogger(__name__)
 worldstate_device_name ='Warframe Worldstate Info'
 worldstate_device_identifiers = (DOMAIN, 'worldstates')
 
+async def _find_cycle_keys(coordinator):
+    toReturn = []
+    for key in coordinator.data.get('data').get('worldstates', {}).keys():
+        if key.endswith("Cycle"):
+            toReturn.append(key)
+
+
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     """Set up the sensor platform."""
 
@@ -41,6 +48,10 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
             sensors.append(WorldStateAlertSensor(coordinator))
         if config.get("archon_hunt"):
             sensors.append(WorldStateArchonHuntSensor(coordinator))
+        if config.get("open_worlds"):
+            coordinator.data.get('data').get('worldstates', {})
+            for world_key in _find_cycle_keys:
+                sensors.append(WorldStateOpenWorldSensor(coordinator, world_key))
         # archonHunt
 
     async_add_entities(sensors, True)
@@ -125,6 +136,77 @@ class WorldStateArchonHuntSensor(CoordinatorEntity, SensorEntity):
         super().__init__(coordinator)
 
         self._name = 'Archon Hunt'
+        self._state = None
+        self.attrs = {}
+        self._available = True
+        self.entity_id = 'sensor.warframe_archon_hunt'
+
+        self._icon = "mdi:calendar-week"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return DeviceInfo(
+            identifiers = {(*worldstate_device_identifiers, self._name, self.entity_id)},
+            name=worldstate_device_name,
+        )
+
+    @property
+    def icon(self):
+        return self._icon
+
+    @property
+    def state_class(self) -> SensorStateClass:
+        """Handle string instances."""
+        return SensorStateClass.MEASUREMENT
+
+    @property
+    def name(self) -> str:
+        """Return the name of the entity."""
+        return self._name
+
+    @property
+    def state(self) -> int | None:
+        return self._state
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return self.attrs
+
+    @property
+    def native_value(self) -> int:
+        return self._state
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        return 'sensor.warframe_archon_hunt'
+
+    @callback
+    def _handle_coordinator_update(self):
+        archon_hunt_data = self.coordinator.data.get('data').get('worldstates', {}).get('archonHunt', {})
+
+        state = archon_hunt_data.get("boss", "Unknown")
+        default_alert = {
+            "node":"Unknown",
+            "type": "Unknown"
+        }
+        missions = []
+        for mission in archon_hunt_data.get("missions", [default_alert]):
+            data = {
+                "node": mission.get("node"),
+                "missionType": mission.get("type")
+            }
+            missions.append(data)
+        self.attrs.update({"missions":missions})
+        self._state = state
+        self.async_write_ha_state()
+
+class WorldStateOpenWorldSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator, world_key):
+        super().__init__(coordinator, world_key)
+
+        self._name = world_key + 'Cycle'
         self._state = None
         self.attrs = {}
         self._available = True

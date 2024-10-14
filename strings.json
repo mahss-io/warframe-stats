@@ -2,11 +2,11 @@
   "config": {
     "step": {
       "user": {
-        "title": "test title",
+        "title": "Which Domains would you like to pull data for?",
         "data": {
-          "worldstates": "Pull Worldstate Statistics?",
-          "profiles": "Pull User Profile Statistics?",
-          "static_items": "Pull Static Item Statistics?"
+          "worldstates": "Worldstate Data",
+          "profiles": "Specific Player Data",
+          "static_items": "Static Item Data"
         }
       },
       "worldstates": {
