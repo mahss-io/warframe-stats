@@ -36,11 +36,11 @@
             },
             "user": {
                 "data": {
-                    "profiles": "Pull User Profile Statistics?",
-                    "static_items": "Pull Static Item Statistics?",
-                    "worldstates": "Pull Worldstate Statistics?"
+                    "profiles": "Specific Player Data",
+                    "static_items": "Static Item Data",
+                    "worldstates": "Worldstate Data"
                 },
-                "title": "test title"
+                "title": "Which Domains would you like to pull data for?"
             },
             "worldstates": {
                 "data": {

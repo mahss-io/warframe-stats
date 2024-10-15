@@ -1,4 +1,5 @@
 """Platform for sensor integration."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -24,22 +25,20 @@ from .coordinator import WarframeStatsDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-worldstate_device_name ='Warframe Worldstate Info'
-worldstate_device_identifiers = (DOMAIN, 'worldstates')
-
-async def _find_cycle_keys(coordinator):
-    toReturn = []
-    for key in coordinator.data.get('data').get('worldstates', {}).keys():
-        if key.endswith("Cycle"):
-            toReturn.append(key)
+worldstate_device_name = "Warframe Worldstate Info"
+worldstate_device_identifiers = (DOMAIN, "worldstates")
 
 
-async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
+async def async_setup_entry(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Set up the sensor platform."""
 
     config = hass.data[DOMAIN][config_entry.entry_id]
 
-    coordinator =  config['coordinator']
+    coordinator = config["coordinator"]
 
     sensors = []
 
@@ -49,23 +48,28 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
         if config.get("archon_hunt"):
             sensors.append(WorldStateArchonHuntSensor(coordinator))
         if config.get("open_worlds"):
-            coordinator.data.get('data').get('worldstates', {})
-            for world_key in _find_cycle_keys:
-                sensors.append(WorldStateOpenWorldSensor(coordinator, world_key))
+            coordinator.data.get("data").get("worldstates", {})
+            cycle_keys = []
+            for key in coordinator.data.get("data").get("worldstates", {}).keys():
+                if key.endswith("Cycle"):
+                    cycle_keys.append(key)
+            for world_key in cycle_keys:
+                sensors.append(WorldStateWorldSensor(coordinator, world_key))
         # archonHunt
 
     async_add_entities(sensors, True)
+
 
 class WorldStateAlertSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
 
-        self._name = 'Alerts'
+        self._name = "Alerts"
         self._state = 0
         self._attr_extra_state_attributes = {}
         self.attrs = {}
         self._available = True
-        self.entity_id = 'sensor.warframe_alerts'
+        self.entity_id = "sensor.warframe_alerts"
 
         self._icon = "mdi:alert"
 
@@ -73,7 +77,7 @@ class WorldStateAlertSensor(CoordinatorEntity, SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers = {(*worldstate_device_identifiers, self._name, self.entity_id)},
+            identifiers={worldstate_device_identifiers},
             name=worldstate_device_name,
         )
 
@@ -106,40 +110,45 @@ class WorldStateAlertSensor(CoordinatorEntity, SensorEntity):
     @property
     def unique_id(self):
         """Return a unique ID."""
-        return 'sensor.warframe_alerts'
+        return "sensor.warframe_alerts"
 
     @callback
     def _handle_coordinator_update(self):
-        alert_data = self.coordinator.data.get('data').get('worldstates', {}).get('alerts', {})
+        alert_data = (
+            self.coordinator.data.get("data").get("worldstates", {}).get("alerts", {})
+        )
 
         alert_count = 0
         default_alert = {
-            "node":"Unknown",
-            "reward": {"itemString":"Unknown"},
-            "type": "Unknown"
+            "node": "Unknown",
+            "reward": {"itemString": "Unknown"},
+            "type": "Unknown",
         }
         missions = []
         for alert in alert_data:
             data = {
                 "node": alert.get("mission", default_alert).get("node"),
-                "reward": alert.get("mission", default_alert).get("reward").get("itemString"),
-                "missionType": alert.get("mission", default_alert).get("type")
+                "reward": alert.get("mission", default_alert)
+                .get("reward")
+                .get("itemString"),
+                "missionType": alert.get("mission", default_alert).get("type"),
             }
             missions.append(data)
             alert_count += 1
-        self.attrs.update({"missions":missions})
+        self.attrs.update({"missions": missions})
         self._state = alert_count
         self.async_write_ha_state()
+
 
 class WorldStateArchonHuntSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
 
-        self._name = 'Archon Hunt'
+        self._name = "Archon Hunt"
         self._state = None
         self.attrs = {}
         self._available = True
-        self.entity_id = 'sensor.warframe_archon_hunt'
+        self.entity_id = "sensor.warframe_archon_hunt"
 
         self._icon = "mdi:calendar-week"
 
@@ -147,7 +156,7 @@ class WorldStateArchonHuntSensor(CoordinatorEntity, SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers = {(*worldstate_device_identifiers, self._name, self.entity_id)},
+            identifiers={worldstate_device_identifiers},
             name=worldstate_device_name,
         )
 
@@ -180,45 +189,45 @@ class WorldStateArchonHuntSensor(CoordinatorEntity, SensorEntity):
     @property
     def unique_id(self):
         """Return a unique ID."""
-        return 'sensor.warframe_archon_hunt'
+        return "sensor.warframe_archon_hunt"
 
     @callback
     def _handle_coordinator_update(self):
-        archon_hunt_data = self.coordinator.data.get('data').get('worldstates', {}).get('archonHunt', {})
+        archon_hunt_data = (
+            self.coordinator.data.get("data")
+            .get("worldstates", {})
+            .get("archonHunt", {})
+        )
 
         state = archon_hunt_data.get("boss", "Unknown")
-        default_alert = {
-            "node":"Unknown",
-            "type": "Unknown"
-        }
+        default_alert = {"node": "Unknown", "type": "Unknown"}
         missions = []
         for mission in archon_hunt_data.get("missions", [default_alert]):
-            data = {
-                "node": mission.get("node"),
-                "missionType": mission.get("type")
-            }
+            data = {"node": mission.get("node"), "missionType": mission.get("type")}
             missions.append(data)
-        self.attrs.update({"missions":missions})
+        self.attrs.update({"missions": missions})
         self._state = state
         self.async_write_ha_state()
 
-class WorldStateOpenWorldSensor(CoordinatorEntity, SensorEntity):
+
+class WorldStateWorldSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, world_key):
         super().__init__(coordinator, world_key)
-
-        self._name = world_key + 'Cycle'
+        self.world_name = world_key.replace("Cycle", "")
+        self.world_key = world_key
+        self._name = self.world_name.capitalize() + " Cycle"
         self._state = None
         self.attrs = {}
         self._available = True
-        self.entity_id = 'sensor.warframe_archon_hunt'
+        self.entity_id = "sensor.warframe_" + self.world_name + "_cycle"
 
-        self._icon = "mdi:calendar-week"
+        self._icon = "mdi:clock-time-eight"
 
     @property
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers = {(*worldstate_device_identifiers, self._name, self.entity_id)},
+            identifiers={worldstate_device_identifiers},
             name=worldstate_device_name,
         )
 
@@ -251,24 +260,19 @@ class WorldStateOpenWorldSensor(CoordinatorEntity, SensorEntity):
     @property
     def unique_id(self):
         """Return a unique ID."""
-        return 'sensor.warframe_archon_hunt'
+        return "sensor.warframe_" + self.world_name + "_cycle"
+
+    # @callback
+    # def async_update()
 
     @callback
     def _handle_coordinator_update(self):
-        archon_hunt_data = self.coordinator.data.get('data').get('worldstates', {}).get('archonHunt', {})
+        world_state_data = (
+            self.coordinator.data.get("data")
+            .get("worldstates", {})
+            .get(self.world_key, {})
+        )
 
-        state = archon_hunt_data.get("boss", "Unknown")
-        default_alert = {
-            "node":"Unknown",
-            "type": "Unknown"
-        }
-        missions = []
-        for mission in archon_hunt_data.get("missions", [default_alert]):
-            data = {
-                "node": mission.get("node"),
-                "missionType": mission.get("type")
-            }
-            missions.append(data)
-        self.attrs.update({"missions":missions})
-        self._state = state
+        self.attrs.update({"expiry": world_state_data.get("expiry", "Unknown")})
+        self._state = world_state_data.get("state")
         self.async_write_ha_state()
