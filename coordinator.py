@@ -31,7 +31,7 @@ class WarframeStatsDataUpdateCoordinator(DataUpdateCoordinator):
 
         self.gottenInitData = False
 
-        update_interval = timedelta(seconds=166666)
+        update_interval = timedelta(seconds=3600)
         super().__init__(
             hass,
             _LOGGER,
@@ -46,6 +46,7 @@ class WarframeStatsDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         toReturn = {}
         try:
+            data = {}
             session = aiohttp.ClientSession()
             if not self.gottenInitData:
                 # Get the static files
@@ -56,7 +57,6 @@ class WarframeStatsDataUpdateCoordinator(DataUpdateCoordinator):
                 self.gottenInitData = True
             # normal update pos
             # If subscribed to worldstate then call api
-            data = {}
             if self.config.get("worldstates"):
                 data.update({"worldstates": await self._makeRequest(f'{URL_BASE}{URL_WORLD_STATE_ENDPOINT}', session)})
             if self.config.get("profiles"):
