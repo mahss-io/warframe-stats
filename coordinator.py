@@ -4,7 +4,7 @@ import logging
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.exceptions import ConfigEntryNotReady
-
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 _LOGGER = logging.getLogger(__name__)
 
 from .const import (
@@ -13,6 +13,7 @@ from .const import (
     URL_TRANSLATION_FISSURE_MODIFERS_ENDPOINT,
     URL_TRANSLATION_MISSION_TYPES_ENDPOINT,
     URL_TRANSLATION_OTHER_ENDPOINT,
+    URL_TRANSLATION_WARFRAME_ENDPOINT,
     URL_TRANSLATION_SOL_NODES_ENDPOINT,
     URL_TRANSLATION_SORTIES_ENDPOINT,
     URL_TRANSLATION_SYNDICATES_ENDPOINT,
@@ -26,6 +27,7 @@ from .const import (
 class WarframeStatsDataUpdateCoordinator(DataUpdateCoordinator):
     def __init__(self, hass, entry):
         """Initialize the coordinator."""
+        self.session = async_get_clientsession(hass)
         self._str_lookup = {}
         self.config = entry.data
 
@@ -47,28 +49,27 @@ class WarframeStatsDataUpdateCoordinator(DataUpdateCoordinator):
         toReturn = {}
         try:
             data = {}
-            session = aiohttp.ClientSession()
             if not self.gottenInitData:
                 # Get the static files
                 # Build name lookup dictioary from multiple endpoints
-                await self._get_init_data(session)
+                await self._get_init_data(self.session)
                 await self._standardise_lookup()
                 # Create custom lookup method for partial matches with starting with
                 self.gottenInitData = True
             # normal update pos
             # If subscribed to worldstate then call api
             if self.config.get("worldstates"):
-                data.update({"worldstates": await self._makeRequest(f'{URL_BASE}{URL_WORLD_STATE_ENDPOINT}', session)})
+                data.update({"worldstates": await self._makeRequest(f'{URL_BASE}{URL_WORLD_STATE_ENDPOINT}', self.session)})
             if self.config.get("profiles"):
                 user_data = {}
                 for user in self.config.get("usernames"):
-                    user_data.update({user: await self._makeRequest(f'{URL_BASE}{URL_PRE_PROFILE_ENDPOINT}{user}{URL_STATS_ENDPOINT}', session)})
+                    user_data.update({user: await self._makeRequest(f'{URL_BASE}{URL_PRE_PROFILE_ENDPOINT}{user}{URL_STATS_ENDPOINT}', self.session)})
                 data.update({"profiles": user_data})
             if self.config.get("static_items"):
-                data.update({"static_items": await self._makeRequest(f'{URL_BASE}{URL_STATIC_ITEM_ENDPOINT}', session)})
+                data.update({"static_items": await self._makeRequest(f'{URL_BASE}{URL_STATIC_ITEM_ENDPOINT}', self.session)})
+        except Exception as err:
+            print(err)
         finally:
-            await session.close()
-
             toReturn.update({
                 "lookup": self._str_lookup,
                 "data": data
@@ -85,6 +86,12 @@ class WarframeStatsDataUpdateCoordinator(DataUpdateCoordinator):
         await self._update_lookup_if_valid(
             await self._orginize_sorties_lookup(
                 await self._makeRequest(f"{URL_BASE}{URL_TRANSLATION_SORTIES_ENDPOINT}", session)
+            )
+        )
+        # Warframe Abilities
+        await self._update_lookup_if_valid(
+            await self._orginize_warframe_abilitiy_lookup(
+                await self._makeRequest(f"{URL_BASE}{URL_TRANSLATION_WARFRAME_ENDPOINT}", session)
             )
         )
         # Faction Names
@@ -122,16 +129,6 @@ class WarframeStatsDataUpdateCoordinator(DataUpdateCoordinator):
                 if value.get("value"):
                     self._str_lookup.update({key: value})
 
-    async def _get_partial_lookup(self, lookup, default=None):
-        lookup = lookup.lower()
-        data = self._str_lookup.get(lookup)
-        if data is not None:
-            return data
-        for lookup_key, data in self._str_lookup.items():
-            if lookup_key.startswith(lookup) or lookup.startswith(lookup_key):
-                return data
-        return default
-
     async def _orginize_sorties_lookup(self, sorties_data):
         orginized_sorties_data = {}
         for key, value in sorties_data.items():
@@ -153,6 +150,20 @@ class WarframeStatsDataUpdateCoordinator(DataUpdateCoordinator):
                         orginized_sorties_data.update({boss_key:{"value": boss_value}})
         return orginized_sorties_data
 
+    async def _orginize_warframe_abilitiy_lookup(self, warframe_data):
+        orginized_warframe_ability_data = {}
+        for warframe_entity in warframe_data:
+            if isinstance(warframe_entity, dict):
+                abilities = warframe_entity.get("abilities")
+                if abilities and isinstance(abilities, list):
+                    for ability in abilities:
+                        ability_data = {
+                            "value": ability.get("name"),
+                            "description": ability.get("description")
+                        }
+                        orginized_warframe_ability_data.update({ability.get("uniqueName"):ability_data})
+        return orginized_warframe_ability_data
+
     async def _makeRequest(self, url, session):
         getHeaders = {}
         toReturn = {}
@@ -162,7 +173,7 @@ class WarframeStatsDataUpdateCoordinator(DataUpdateCoordinator):
                 url, headers=getHeaders, timeout=6
             ) as getResponse:
                 if getResponse.status == 200:
-                    return dict(await getResponse.json())
-                return toReturn
+                    return await getResponse.json()
         except Exception as err:
             raise UpdateFailed(f"Error fetching data: {err}")
+        return toReturn

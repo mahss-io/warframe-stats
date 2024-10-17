@@ -28,8 +28,13 @@ from .coordinator import WarframeStatsDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-worldstate_device_name = "Warframe Worldstate Info"
-worldstate_device_identifiers = (DOMAIN, "worldstates")
+worldstate_device = DeviceInfo(
+            identifiers={(DOMAIN, "worldstates")},
+            name="Warframe Worldstate Info",
+        )
+
+profile_device_base_identifiers=(DOMAIN, "profile")
+profile_device_base_name="Warframe "
 
 
 async def async_setup_entry(
@@ -78,10 +83,24 @@ async def async_setup_entry(
             sensors.append(WorldStateVoidTraderSensor(coordinator))
         if config.get("varzia"):
             sensors.append(WorldStateVarziaSensor(coordinator))
-        # archonHunt
+    if config.get("profiles"):
+        for username in config.get("usernames"):
+            if config.get("total_abilities_used"):
+                sensors.append(ProfileAbilitiesSensor(coordinator, username))
+            if config.get("total_enemies_killed"):
+                sensors.append(ProfileEnemiesSensor(coordinator, username))
+            if config.get("most_scans"):
+                sensors.append(ProfileScansSensor(coordinator, username))
+            if config.get("credits"):
+                sensors.append(ProfileCreditSensor(coordinator, username))
+            if config.get("rank"):
+                sensors.append(ProfileRankSensor(coordinator, username))
+            if config.get("death"):
+                sensors.append(ProfileDeathSensor(coordinator, username))
+            if config.get("time_played"):
+                sensors.append(ProfileTimePlayedSensor(coordinator, username))
 
     async_add_entities(sensors, True)
-
 
 class WorldStateAlertSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator):
@@ -99,10 +118,7 @@ class WorldStateAlertSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
-        return DeviceInfo(
-            identifiers={worldstate_device_identifiers},
-            name=worldstate_device_name,
-        )
+        return worldstate_device
 
     @property
     def icon(self):
@@ -177,10 +193,7 @@ class WorldStateArchonHuntSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
-        return DeviceInfo(
-            identifiers={worldstate_device_identifiers},
-            name=worldstate_device_name,
-        )
+        return worldstate_device
 
     @property
     def icon(self):
@@ -247,10 +260,7 @@ class WorldStateWorldSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
-        return DeviceInfo(
-            identifiers={worldstate_device_identifiers},
-            name=worldstate_device_name,
-        )
+        return worldstate_device
 
     @property
     def icon(self):
@@ -341,10 +351,7 @@ class WorldStateRelayEventSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={worldstate_device_identifiers},
-            name=worldstate_device_name,
-        )
+        return worldstate_device
 
     @property
     def icon(self):
@@ -402,10 +409,7 @@ class WorldStateDeepArchimdeaSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={worldstate_device_identifiers},
-            name=worldstate_device_name,
-        )
+        return worldstate_device
 
     @property
     def icon(self):
@@ -474,10 +478,7 @@ class WorldStateEventSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={worldstate_device_identifiers},
-            name=worldstate_device_name,
-        )
+        return worldstate_device
 
     @property
     def icon(self):
@@ -539,10 +540,7 @@ class WorldStateFissureSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={worldstate_device_identifiers},
-            name=worldstate_device_name,
-        )
+        return worldstate_device
 
     @property
     def icon(self):
@@ -624,10 +622,7 @@ class WorldStateInvasionSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={worldstate_device_identifiers},
-            name=worldstate_device_name,
-        )
+        return worldstate_device
 
     @property
     def icon(self):
@@ -691,10 +686,7 @@ class WorldStateSortieSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={worldstate_device_identifiers},
-            name=worldstate_device_name,
-        )
+        return worldstate_device
 
     @property
     def icon(self):
@@ -765,10 +757,7 @@ class WorldStateSteelPathSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={worldstate_device_identifiers},
-            name=worldstate_device_name,
-        )
+        return worldstate_device
 
     @property
     def icon(self):
@@ -821,10 +810,7 @@ class WorldStateVoidTraderSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={worldstate_device_identifiers},
-            name=worldstate_device_name,
-        )
+        return worldstate_device
 
     @property
     def icon(self):
@@ -882,10 +868,7 @@ class WorldStateVarziaSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={worldstate_device_identifiers},
-            name=worldstate_device_name,
-        )
+        return worldstate_device
 
     @property
     def icon(self):
@@ -936,3 +919,531 @@ class WorldStateVarziaSensor(CoordinatorEntity, SensorEntity):
         self.attrs.update({"items":data})
         self._state = count
         self.async_write_ha_state()
+
+
+class ProfileAbilitiesSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator, username):
+        super().__init__(coordinator)
+
+        self.username = username
+        self._name = username + " Abilities Used"
+        self._state = 0
+        self.attrs = {}
+        self._available = True
+        self.entity_id = f"sensor.warframe_{username}_abilities_used"
+
+        self._icon = "mdi:exclamation-thick"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return DeviceInfo(
+            identifiers={(*profile_device_base_identifiers, self.username)},
+            name=profile_device_base_name + self.username
+        )
+
+    @property
+    def icon(self):
+        return self._icon
+
+    @property
+    def state_class(self) -> SensorStateClass:
+        """Handle string instances."""
+        return SensorStateClass.MEASUREMENT
+
+    @property
+    def name(self) -> str:
+        """Return the name of the entity."""
+        return self._name
+
+    @property
+    def state(self) -> int | None:
+        return self._state
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return self.attrs
+
+    @property
+    def native_value(self) -> int:
+        return self._state
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        return f"sensor.warframe_{self.username}_abilities_used"
+
+    @callback
+    def _handle_coordinator_update(self):
+        user_ability_data = (
+            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("abilities", [])
+        )
+        lookup = self.coordinator.data.get("lookup")
+
+        ability_count = 0
+        abilities_used = []
+        for ability in user_ability_data:
+            key = ability.get("uniqueName")
+            used = int(ability.get("used", 0))
+            ability_name = _get_partial_lookup(key, lookup)
+            ability_count += used
+            abilities_used.append({
+                "name": ability_name.get("value") if isinstance(ability_name, dict) else key,
+                "used": used
+            })
+
+        self.attrs.update({"abilities": abilities_used})
+        self._state = ability_count
+        self.async_write_ha_state()
+
+class ProfileEnemiesSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator, username):
+        super().__init__(coordinator)
+
+        self.username = username
+        self._name = username + " Enemies Killed"
+        self._state = 0
+        self.attrs = {}
+        self._available = True
+        self.entity_id = f"sensor.warframe_{username}_enemies_killed"
+
+        self._icon = "mdi:ammunition"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return DeviceInfo(
+            identifiers={(*profile_device_base_identifiers, self.username)},
+            name=profile_device_base_name + self.username
+        )
+
+    @property
+    def icon(self):
+        return self._icon
+
+    @property
+    def state_class(self) -> SensorStateClass:
+        """Handle string instances."""
+        return SensorStateClass.MEASUREMENT
+
+    @property
+    def name(self) -> str:
+        """Return the name of the entity."""
+        return self._name
+
+    @property
+    def state(self) -> int | None:
+        return self._state
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return self.attrs
+
+    @property
+    def native_value(self) -> int:
+        return self._state
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        return f"sensor.warframe_{self.username}_enemies_killed"
+
+    @callback
+    def _handle_coordinator_update(self):
+        user_enemie_data = (
+            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("enemies", [])
+        )
+        lookup = self.coordinator.data.get("lookup")
+
+        enemies_killed_count = 0
+        enemies_killed = []
+        for enemy in user_enemie_data:
+            key = enemy.get("uniqueName")
+            killed = int(enemy.get("kills", 0))
+            enemy_name = _get_partial_lookup(key, lookup)
+            enemies_killed_count += killed
+            enemies_killed.append({
+                "name": enemy_name.get("value") if isinstance(enemy_name, dict) else key,
+                "killed": killed
+            })
+
+        self.attrs.update({"enemies_killed": enemies_killed})
+        self._state = enemies_killed_count
+        self.async_write_ha_state()
+
+class ProfileScansSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator, username):
+        super().__init__(coordinator)
+
+        self.username = username
+        self._name = username + " Most Scans"
+        self._state = 0
+        self.attrs = {}
+        self._available = True
+        self.entity_id = f"sensor.warframe_{username}_most_scans"
+
+        self._icon = "mdi:skull-scan-outline"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return DeviceInfo(
+            identifiers={(*profile_device_base_identifiers, self.username)},
+            name=profile_device_base_name + self.username
+        )
+
+    @property
+    def icon(self):
+        return self._icon
+
+    @property
+    def state_class(self) -> SensorStateClass:
+        """Handle string instances."""
+        return SensorStateClass.MEASUREMENT
+
+    @property
+    def name(self) -> str:
+        """Return the name of the entity."""
+        return self._name
+
+    @property
+    def state(self) -> int | None:
+        return self._state
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return self.attrs
+
+    @property
+    def native_value(self) -> int:
+        return self._state
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        return f"sensor.warframe_{self.username}_most_scans"
+
+    @callback
+    def _handle_coordinator_update(self):
+        user_enemie_data = (
+            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("scans", [])
+        )
+        lookup = self.coordinator.data.get("lookup")
+
+        max_scan_amount = 0
+        max_scan_item = ""
+        items_scanned = []
+        for enemy in user_enemie_data:
+            key = enemy.get("uniqueName")
+            scans = int(enemy.get("scans", 0))
+            item_name = _get_partial_lookup(key, lookup)
+            if max_scan_amount < scans:
+                max_scan_amount = scans
+                max_scan_item = item_name.get("value") if isinstance(item_name, dict) else key
+
+            items_scanned.append({
+                "name": item_name.get("value") if isinstance(item_name, dict) else key,
+                "scans": scans
+            })
+
+        self.attrs.update({"max_scanned": {"name":max_scan_item, "scans": max_scan_amount}, "items_scanned": items_scanned})
+        self._state = max_scan_item
+        self.async_write_ha_state()
+
+class ProfileCreditSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator, username):
+        super().__init__(coordinator)
+
+        self.username = username
+        self._name = username + " Total Credits"
+        self._state = 0
+        self.attrs = {}
+        self._available = True
+        self.entity_id = f"sensor.warframe_{username}_total_credits"
+
+        self._icon = "mdi:micro-sd"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return DeviceInfo(
+            identifiers={(*profile_device_base_identifiers, self.username)},
+            name=profile_device_base_name + self.username
+        )
+
+    @property
+    def icon(self):
+        return self._icon
+
+    @property
+    def state_class(self) -> SensorStateClass:
+        """Handle string instances."""
+        return SensorStateClass.MEASUREMENT
+
+    @property
+    def name(self) -> str:
+        """Return the name of the entity."""
+        return self._name
+
+    @property
+    def state(self) -> int | None:
+        return self._state
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return self.attrs
+
+    @property
+    def native_value(self) -> int:
+        return self._state
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        return f"sensor.warframe_{self.username}_total_credits"
+
+    @callback
+    def _handle_coordinator_update(self):
+        credit_data = (
+            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("income", 0)
+        )
+        time_played_seconds_data = (
+            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("timePlayedSec", 0)
+        )
+
+        self.attrs.update({"credits_per_hour": credit_data/((time_played_seconds_data/60)/60)})
+        self._state = credit_data
+        self.async_write_ha_state()
+
+class ProfileRankSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator, username):
+        super().__init__(coordinator)
+
+        self.username = username
+        self._name = username + " Rank"
+        self._state = 0
+        self.attrs = {}
+        self._available = True
+        self.entity_id = f"sensor.warframe_{username}_rank"
+
+        self._icon = "mdi:chevron-triple-up"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return DeviceInfo(
+            identifiers={(*profile_device_base_identifiers, self.username)},
+            name=profile_device_base_name + self.username
+        )
+
+    @property
+    def icon(self):
+        return self._icon
+
+    @property
+    def state_class(self) -> SensorStateClass:
+        """Handle string instances."""
+        return SensorStateClass.MEASUREMENT
+
+    @property
+    def name(self) -> str:
+        """Return the name of the entity."""
+        return self._name
+
+    @property
+    def state(self) -> int | None:
+        return self._state
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return self.attrs
+
+    @property
+    def native_value(self) -> int:
+        return self._state
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        return f"sensor.warframe_{self.username}_rank"
+
+    @callback
+    def _handle_coordinator_update(self):
+        rank_data = (
+            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("rank", 0)
+        )
+
+        rank = 0
+        is_legendary = False
+        if rank_data > 30:
+            is_legendary = True
+            rank = rank_data - 30
+        time_played_seconds_data = (
+            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("timePlayedSec", 0)
+        )
+
+        self.attrs.update({"rank_per_day": rank_data/(((time_played_seconds_data/60)/60)/24)})
+        self._state = ("Legendary " if is_legendary else "") + str(rank)
+        self.async_write_ha_state()
+
+class ProfileDeathSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator, username):
+        super().__init__(coordinator)
+
+        self.username = username
+        self._name = username + " Deaths"
+        self._state = 0
+        self.attrs = {}
+        self._available = True
+        self.entity_id = f"sensor.warframe_{username}_deaths"
+
+        self._icon = "mdi:robot-dead-outline"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return DeviceInfo(
+            identifiers={(*profile_device_base_identifiers, self.username)},
+            name=profile_device_base_name + self.username
+        )
+
+    @property
+    def icon(self):
+        return self._icon
+
+    @property
+    def state_class(self) -> SensorStateClass:
+        """Handle string instances."""
+        return SensorStateClass.MEASUREMENT
+
+    @property
+    def name(self) -> str:
+        """Return the name of the entity."""
+        return self._name
+
+    @property
+    def state(self) -> int | None:
+        return self._state
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return self.attrs
+
+    @property
+    def native_value(self) -> int:
+        return self._state
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        return f"sensor.warframe_{self.username}_deaths"
+
+    @callback
+    def _handle_coordinator_update(self):
+        death_data = (
+            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("deaths", 0)
+        )
+        user_enemy_data = (
+            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("enemies", [])
+        )
+        lookup = self.coordinator.data.get("lookup")
+
+        enemies_that_killed_player = []
+        for enemy in user_enemy_data:
+            if enemy.get("deaths"):
+                key = enemy.get("uniqueName")
+                deaths = int(enemy.get("deaths", 0))
+                enemy_name = _get_partial_lookup(key, lookup)
+                enemies_that_killed_player.append({
+                    "name": enemy_name.get("value") if isinstance(enemy_name, dict) else key,
+                    "deaths": deaths
+                })
+
+        self.attrs.update({"player_kills": enemies_that_killed_player})
+        self._state = death_data
+        self.async_write_ha_state()
+
+class ProfileTimePlayedSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator, username):
+        super().__init__(coordinator)
+
+        self.username = username
+        self._name = username + " Time Played"
+        self._state = 0
+        self.attrs = {}
+        self._available = True
+        self.entity_id = f"sensor.warframe_{username}_time_played"
+
+        self._icon = "mdi:timer-alert-outline"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return DeviceInfo(
+            identifiers={(*profile_device_base_identifiers, self.username)},
+            name=profile_device_base_name + self.username
+        )
+
+    @property
+    def icon(self):
+        return self._icon
+
+    @property
+    def state_class(self) -> SensorStateClass:
+        """Handle string instances."""
+        return SensorStateClass.MEASUREMENT
+
+    @property
+    def name(self) -> str:
+        """Return the name of the entity."""
+        return self._name
+
+    @property
+    def state(self) -> int | None:
+        return self._state
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return self.attrs
+
+    @property
+    def native_value(self) -> int:
+        return self._state
+
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        return f"sensor.warframe_{self.username}_time_played"
+
+    @callback
+    def _handle_coordinator_update(self):
+        time_played_data = (
+            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("timePlayedSec", 0)
+        )
+        seconds_played = float(time_played_data)
+        minutes_played = seconds_played/60.0
+        hours_played = minutes_played/60.0
+        days_played = hours_played/24.0
+        months_played = days_played/30.44
+
+        self.attrs.update({
+            "seconds_played": time_played_data,
+            "minutes_played": seconds_played,
+            "hours_played": hours_played,
+            "days_played": days_played,
+            "months_played": months_played,
+            })
+        self._state = time_played_data
+        self.async_write_ha_state()
+
+
+def _get_partial_lookup(to_lookup, lookup_table, default=None):
+    to_lookup = to_lookup.lower()
+    data = lookup_table.get(to_lookup)
+    if data is not None:
+        return data
+    for lookup_key, data in lookup_table.items():
+        ## if lookup key is substring
+        if lookup_key.startswith(to_lookup) or to_lookup.startswith(lookup_key) or lookup_key.startswith("/".join(to_lookup.split("/")[:-1])) or "/".join(to_lookup.split("/")[:-1]).startswith(lookup_key):
+            return data
+    return default
