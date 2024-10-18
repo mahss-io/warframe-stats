@@ -24,7 +24,11 @@ from homeassistant.helpers.event import async_track_point_in_utc_time
 
 import homeassistant.util.dt as dt_util
 from .const import DOMAIN
-from .coordinator import WarframeStatsDataUpdateCoordinator
+from .coordinator import (
+    WarframeStaticDataUpdateCoordinator,
+    WarframeWorldstateDataUpdateCoordinator,
+    WarframeProfileDataUpdateCoordinator
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,6 +40,13 @@ worldstate_device = DeviceInfo(
 profile_device_base_identifiers=(DOMAIN, "profile")
 profile_device_base_name="Warframe "
 
+most_used_types = [
+    "warframe",
+    "primary",
+    "secondary",
+    "melee",
+    "companion"
+]
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -46,59 +57,73 @@ async def async_setup_entry(
 
     config = hass.data[DOMAIN][config_entry.entry_id]
 
-    coordinator = config["coordinator"]
+    staticDataCoordinator = config["coordinator"][0]
+    worldstateCoordinator = config["coordinator"][1]
+    profileCoordinator = config["coordinator"][2]
 
     sensors = []
 
     if config.get("worldstates"):
         if config.get("alerts"):
-            sensors.append(WorldStateAlertSensor(coordinator))
+            sensors.append(WorldStateAlertSensor(worldstateCoordinator))
         if config.get("archon_hunt"):
-            sensors.append(WorldStateArchonHuntSensor(coordinator))
+            sensors.append(WorldStateArchonHuntSensor(worldstateCoordinator))
         if config.get("open_worlds"):
-            coordinator.data.get("data").get("worldstates", {})
             cycle_keys = []
-            for key in coordinator.data.get("data").get("worldstates", {}).keys():
+            for key in worldstateCoordinator.data.keys():
                 if key.endswith("Cycle"):
                     cycle_keys.append(key)
             for world_key in cycle_keys:
-                sensors.append(WorldStateWorldSensor(coordinator, world_key))
+                sensors.append(WorldStateWorldSensor(worldstateCoordinator, world_key))
         if config.get("relay_events"):
-            sensors.append(WorldStateRelayEventSensor(coordinator))
+            sensors.append(WorldStateRelayEventSensor(worldstateCoordinator))
         if config.get("deep_archimedea"):
-            sensors.append(WorldStateDeepArchimdeaSensor(coordinator))
+            sensors.append(WorldStateDeepArchimdeaSensor(worldstateCoordinator))
         if config.get("events"):
-            sensors.append(WorldStateEventSensor(coordinator))
+            sensors.append(WorldStateEventSensor(worldstateCoordinator))
         if config.get("fissures"):
-            sensors.append(WorldStateFissureSensor(coordinator, "regular"))
-            sensors.append(WorldStateFissureSensor(coordinator, "steel_path"))
-            sensors.append(WorldStateFissureSensor(coordinator, "void_storm"))
+            sensors.append(WorldStateFissureSensor(worldstateCoordinator, "regular"))
+            sensors.append(WorldStateFissureSensor(worldstateCoordinator, "steel_path"))
+            sensors.append(WorldStateFissureSensor(worldstateCoordinator, "void_storm"))
         if config.get("invasions"):
-            sensors.append(WorldStateInvasionSensor(coordinator))
+            sensors.append(WorldStateInvasionSensor(worldstateCoordinator))
         if config.get("sorties"):
-            sensors.append(WorldStateSortieSensor(coordinator))
+            sensors.append(WorldStateSortieSensor(worldstateCoordinator))
         if config.get("steel_path"):
-            sensors.append(WorldStateSteelPathSensor(coordinator))
+            sensors.append(WorldStateSteelPathSensor(worldstateCoordinator))
         if config.get("void_trader"):
-            sensors.append(WorldStateVoidTraderSensor(coordinator))
+            sensors.append(WorldStateVoidTraderSensor(worldstateCoordinator))
         if config.get("varzia"):
-            sensors.append(WorldStateVarziaSensor(coordinator))
+            sensors.append(WorldStateVarziaSensor(worldstateCoordinator))
     if config.get("profiles"):
         for username in config.get("usernames"):
             if config.get("total_abilities_used"):
-                sensors.append(ProfileAbilitiesSensor(coordinator, username))
+                sensors.append(ProfileAbilitiesSensor(profileCoordinator, username, staticDataCoordinator))
             if config.get("total_enemies_killed"):
-                sensors.append(ProfileEnemiesSensor(coordinator, username))
+                sensors.append(ProfileEnemiesSensor(profileCoordinator, username, staticDataCoordinator))
             if config.get("most_scans"):
-                sensors.append(ProfileScansSensor(coordinator, username))
+                sensors.append(ProfileScansSensor(profileCoordinator, username, staticDataCoordinator))
             if config.get("credits"):
-                sensors.append(ProfileCreditSensor(coordinator, username))
+                sensors.append(ProfileCreditSensor(profileCoordinator, username))
             if config.get("rank"):
-                sensors.append(ProfileRankSensor(coordinator, username))
+                sensors.append(ProfileRankSensor(profileCoordinator, username))
             if config.get("death"):
-                sensors.append(ProfileDeathSensor(coordinator, username))
+                sensors.append(ProfileDeathSensor(profileCoordinator, username, staticDataCoordinator))
             if config.get("time_played"):
-                sensors.append(ProfileTimePlayedSensor(coordinator, username))
+                sensors.append(ProfileTimePlayedSensor(profileCoordinator, username))
+            if config.get("star_chart_completion"):
+                sensors.append(ProfileStarChartSensor(profileCoordinator, username, staticDataCoordinator))
+            # for type in most_used_types:
+            #     if config.get("most_used_warframe") and type == "warframe":
+            #         sensors.append(ProfileMostUsedSensor(coordinator, username, type))
+            #     if config.get("most_used_primary") and type == "primary":
+            #         sensors.append(ProfileMostUsedSensor(coordinator, username, type))
+            #     if config.get("most_used_secondary") and type == "secondary":
+            #         sensors.append(ProfileMostUsedSensor(coordinator, username, type))
+            #     if config.get("most_used_melee") and type == "melee":
+            #         sensors.append(ProfileMostUsedSensor(coordinator, username, type))
+            #     if config.get("most_used_companion") and type == "companion":
+            #         sensors.append(ProfileMostUsedSensor(coordinator, username, type))
 
     async_add_entities(sensors, True)
 
@@ -154,7 +179,7 @@ class WorldStateAlertSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         alert_data = (
-            self.coordinator.data.get("data").get("worldstates", {}).get("alerts", {})
+            self.coordinator.data.get("alerts", {})
         )
 
         alert_count = 0
@@ -229,8 +254,7 @@ class WorldStateArchonHuntSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         archon_hunt_data = (
-            self.coordinator.data.get("data")
-            .get("worldstates", {})
+            self.coordinator.data
             .get("archonHunt", {})
         )
 
@@ -293,45 +317,44 @@ class WorldStateWorldSensor(CoordinatorEntity, SensorEntity):
         """Return a unique ID."""
         return "sensor.warframe_" + self.world_name + "_cycle"
 
-    @callback
-    def async_update_at_time(self, now: datetime.datetime) -> None:
-        expiry = self.attrs.get("expiry", dt_util.utcnow())
-        states = []
-        target_index = 0
-        match self.world_name:
-            case "earth":
-                states = ["day", "night"]
-            case "cetus":
-                states = ["day", "night"]
-            case "cambion":
-                states = ["fass", "vome"]
-            case "zariman":
-                states = ["grineer", "courpus"]
-            case "vallis":
-                states = ["warm", "cold"]
-            case "duviri":
-                states = ["joy", "anger", "envy", "sorrow", "fear"]
-        index_of = states.index(self._state)
-        if index_of < (len(states)-1):
-            target_index = index_of + 1
-        self.attrs.update({"expiry": None})
-        self._state = states[target_index]
-        if len(states) != 0:
-            self.async_write_ha_state()
+    # @callback
+    # def async_update_at_time(self, now: datetime.datetime) -> None:
+    #     expiry = self.attrs.get("expiry", dt_util.utcnow())
+    #     states = []
+    #     target_index = 0
+    #     match self.world_name:
+    #         case "earth":
+    #             states = ["day", "night"]
+    #         case "cetus":
+    #             states = ["day", "night"]
+    #         case "cambion":
+    #             states = ["fass", "vome"]
+    #         case "zariman":
+    #             states = ["grineer", "courpus"]
+    #         case "vallis":
+    #             states = ["warm", "cold"]
+    #         case "duviri":
+    #             states = ["joy", "anger", "envy", "sorrow", "fear"]
+    #     index_of = states.index(self._state)
+    #     if index_of < (len(states)-1):
+    #         target_index = index_of + 1
+    #     self.attrs.update({"expiry": None})
+    #     self._state = states[target_index]
+    #     if len(states) != 0:
+    #         self.async_write_ha_state()
 
     @callback
     def _handle_coordinator_update(self):
         world_state_data = (
-            self.coordinator.data.get("data")
-            .get("worldstates", {})
+            self.coordinator.data
             .get(self.world_key, {})
         )
 
         expiry = dt_util.parse_datetime(world_state_data.get("expiry", "2000-01-01T00:00:00.000Z"))
-        if expiry < (dt_util.utcnow() + datetime.timedelta(hours=1)):
-            async_track_point_in_utc_time(
-                self.hass, self.async_update_at_time, expiry
-            )
+        # if expiry < (dt_util.utcnow() + datetime.timedelta(hours=1)):
+        #     async_track_point_in_utc_time(
+        #         self.hass, self.async_update_at_time, expiry
+        #     )
         self.attrs.update({"expiry": expiry})
         self._state = world_state_data.get("state")
         self.async_write_ha_state()
@@ -384,7 +407,7 @@ class WorldStateRelayEventSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         relay_event_data = (
-            self.coordinator.data.get("data").get("worldstates", {}).get("constructionProgress", {})
+            self.coordinator.data.get("constructionProgress", {})
         )
 
         fomorian = float(relay_event_data.get("fomorianProgress", "0"))
@@ -442,7 +465,7 @@ class WorldStateDeepArchimdeaSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         deep_archimdea_data = (
-            self.coordinator.data.get("data").get("worldstates", {}).get("deepArchimedea", {})
+            self.coordinator.data.get("deepArchimedea", {})
         )
 
         missions_data = deep_archimdea_data.get("missions", {})
@@ -511,7 +534,7 @@ class WorldStateEventSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         _data = (
-            self.coordinator.data.get("data").get("worldstates", {}).get("events", {})
+            self.coordinator.data.get("events", {})
         )
 
         event_count = 0
@@ -573,7 +596,7 @@ class WorldStateFissureSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         _data = (
-            self.coordinator.data.get("data").get("worldstates", {}).get("fissures", {})
+            self.coordinator.data.get("fissures", {})
         )
 
         count = 0
@@ -655,7 +678,7 @@ class WorldStateInvasionSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         _data = (
-            self.coordinator.data.get("data").get("worldstates", {}).get("invasions", {})
+            self.coordinator.data.get("invasions", {})
         )
 
         count = 0
@@ -719,7 +742,7 @@ class WorldStateSortieSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         _data = (
-            self.coordinator.data.get("data").get("worldstates", {}).get("sortie", {})
+            self.coordinator.data.get("sortie", {})
         )
 
         missions = _data.get("variants", {})
@@ -790,7 +813,7 @@ class WorldStateSteelPathSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         _data = (
-            self.coordinator.data.get("data").get("worldstates", {}).get("steelPath", {})
+            self.coordinator.data.get("steelPath", {})
         )
 
         self._state = _data.get("currentReward", {}).get("name")
@@ -843,7 +866,7 @@ class WorldStateVoidTraderSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         _data = (
-            self.coordinator.data.get("data").get("worldstates", {}).get("voidTrader", {})
+            self.coordinator.data.get("voidTrader", {})
         )
 
         if _data.get("active"):
@@ -901,7 +924,7 @@ class WorldStateVarziaSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         _data = (
-            self.coordinator.data.get("data").get("worldstates", {}).get("vaultTrader", {})
+            self.coordinator.data.get("vaultTrader", {})
         )
 
         count = 0
@@ -922,10 +945,11 @@ class WorldStateVarziaSensor(CoordinatorEntity, SensorEntity):
 
 
 class ProfileAbilitiesSensor(CoordinatorEntity, SensorEntity):
-    def __init__(self, coordinator, username):
+    def __init__(self, coordinator, username, staticDataCoordinator):
         super().__init__(coordinator)
 
         self.username = username
+        self.static_data = staticDataCoordinator
         self._name = username + " Abilities Used"
         self._state = 0
         self.attrs = {}
@@ -976,16 +1000,15 @@ class ProfileAbilitiesSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         user_ability_data = (
-            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("abilities", [])
+            self.coordinator.data.get(self.username, {}).get("abilities", [])
         )
-        lookup = self.coordinator.data.get("lookup")
 
         ability_count = 0
         abilities_used = []
         for ability in user_ability_data:
             key = ability.get("uniqueName")
             used = int(ability.get("used", 0))
-            ability_name = _get_partial_lookup(key, lookup)
+            ability_name = _get_partial_lookup(key, self.static_data.name_lookup)
             ability_count += used
             abilities_used.append({
                 "name": ability_name.get("value") if isinstance(ability_name, dict) else key,
@@ -997,10 +1020,11 @@ class ProfileAbilitiesSensor(CoordinatorEntity, SensorEntity):
         self.async_write_ha_state()
 
 class ProfileEnemiesSensor(CoordinatorEntity, SensorEntity):
-    def __init__(self, coordinator, username):
+    def __init__(self, coordinator, username, staticDataCoordinator):
         super().__init__(coordinator)
 
         self.username = username
+        self.static_data = staticDataCoordinator
         self._name = username + " Enemies Killed"
         self._state = 0
         self.attrs = {}
@@ -1051,16 +1075,15 @@ class ProfileEnemiesSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         user_enemie_data = (
-            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("enemies", [])
+            self.coordinator.data.get(self.username, {}).get("enemies", [])
         )
-        lookup = self.coordinator.data.get("lookup")
 
         enemies_killed_count = 0
         enemies_killed = []
         for enemy in user_enemie_data:
             key = enemy.get("uniqueName")
             killed = int(enemy.get("kills", 0))
-            enemy_name = _get_partial_lookup(key, lookup)
+            enemy_name = _get_partial_lookup(key, self.static_data.name_lookup)
             enemies_killed_count += killed
             enemies_killed.append({
                 "name": enemy_name.get("value") if isinstance(enemy_name, dict) else key,
@@ -1072,10 +1095,11 @@ class ProfileEnemiesSensor(CoordinatorEntity, SensorEntity):
         self.async_write_ha_state()
 
 class ProfileScansSensor(CoordinatorEntity, SensorEntity):
-    def __init__(self, coordinator, username):
+    def __init__(self, coordinator, username, staticDataCoordinator):
         super().__init__(coordinator)
 
         self.username = username
+        self.static_data = staticDataCoordinator
         self._name = username + " Most Scans"
         self._state = 0
         self.attrs = {}
@@ -1126,9 +1150,8 @@ class ProfileScansSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         user_enemie_data = (
-            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("scans", [])
+            self.coordinator.data.get(self.username, {}).get("scans", [])
         )
-        lookup = self.coordinator.data.get("lookup")
 
         max_scan_amount = 0
         max_scan_item = ""
@@ -1136,7 +1159,7 @@ class ProfileScansSensor(CoordinatorEntity, SensorEntity):
         for enemy in user_enemie_data:
             key = enemy.get("uniqueName")
             scans = int(enemy.get("scans", 0))
-            item_name = _get_partial_lookup(key, lookup)
+            item_name = _get_partial_lookup(key, self.static_data.name_lookup)
             if max_scan_amount < scans:
                 max_scan_amount = scans
                 max_scan_item = item_name.get("value") if isinstance(item_name, dict) else key
@@ -1205,10 +1228,10 @@ class ProfileCreditSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         credit_data = (
-            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("income", 0)
+            self.coordinator.data.get(self.username, {}).get("income", 0)
         )
         time_played_seconds_data = (
-            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("timePlayedSec", 0)
+            self.coordinator.data.get(self.username, {}).get("timePlayedSec", 0)
         )
 
         self.attrs.update({"credits_per_hour": credit_data/((time_played_seconds_data/60)/60)})
@@ -1270,7 +1293,7 @@ class ProfileRankSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         rank_data = (
-            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("rank", 0)
+            self.coordinator.data.get(self.username, {}).get("playerLevel", 0)
         )
 
         rank = 0
@@ -1279,7 +1302,7 @@ class ProfileRankSensor(CoordinatorEntity, SensorEntity):
             is_legendary = True
             rank = rank_data - 30
         time_played_seconds_data = (
-            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("timePlayedSec", 0)
+            self.coordinator.data.get(self.username, {}).get("timePlayedSec", 0)
         )
 
         self.attrs.update({"rank_per_day": rank_data/(((time_played_seconds_data/60)/60)/24)})
@@ -1287,10 +1310,11 @@ class ProfileRankSensor(CoordinatorEntity, SensorEntity):
         self.async_write_ha_state()
 
 class ProfileDeathSensor(CoordinatorEntity, SensorEntity):
-    def __init__(self, coordinator, username):
+    def __init__(self, coordinator, username, staticDataCoordinator):
         super().__init__(coordinator)
 
         self.username = username
+        self.static_data = staticDataCoordinator
         self._name = username + " Deaths"
         self._state = 0
         self.attrs = {}
@@ -1341,19 +1365,18 @@ class ProfileDeathSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         death_data = (
-            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("deaths", 0)
+            self.coordinator.data.get(self.username, {}).get("deaths", 0)
         )
         user_enemy_data = (
-            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("enemies", [])
+            self.coordinator.data.get(self.username, {}).get("enemies", [])
         )
-        lookup = self.coordinator.data.get("lookup")
 
         enemies_that_killed_player = []
         for enemy in user_enemy_data:
             if enemy.get("deaths"):
                 key = enemy.get("uniqueName")
                 deaths = int(enemy.get("deaths", 0))
-                enemy_name = _get_partial_lookup(key, lookup)
+                enemy_name = _get_partial_lookup(key, self.static_data.name_lookup)
                 enemies_that_killed_player.append({
                     "name": enemy_name.get("value") if isinstance(enemy_name, dict) else key,
                     "deaths": deaths
@@ -1418,7 +1441,7 @@ class ProfileTimePlayedSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         time_played_data = (
-            self.coordinator.data.get("data").get("profiles", {}).get(self.username, {}).get("timePlayedSec", 0)
+            self.coordinator.data.get(self.username, {}).get("timePlayedSec", 0)
         )
         seconds_played = float(time_played_data)
         minutes_played = seconds_played/60.0
@@ -1436,6 +1459,132 @@ class ProfileTimePlayedSensor(CoordinatorEntity, SensorEntity):
         self._state = time_played_data
         self.async_write_ha_state()
 
+class ProfileStarChartSensor(CoordinatorEntity, SensorEntity):
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:map-marker-path"
+    _attr_native_value: float | None = None
+    _attr_extra_state_attributes: dict | None = None
+
+    def __init__(self, coordinator, username, staticDataCoordinator):
+        super().__init__(coordinator)
+
+        self.username = username
+        self.static_data = staticDataCoordinator
+        self._attr_name = username + " Star Chart Completion"
+        self._attr_unique_id = f"sensor.warframe_{username}_star_chart_completion"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(*profile_device_base_identifiers, self.username)},
+            name=profile_device_base_name + self.username
+        )
+
+    @callback
+    def _handle_coordinator_update(self):
+        mission_data = (
+            self.coordinator.data.get(self.username, {}).get("missions", [])
+        )
+
+        total_missions = 0
+        total_completed_missions = 0
+        steel_path = []
+        regular = []
+        for mission in mission_data:
+            nodeKey = mission.get("nodeKey")
+            complete = True if mission.get("highScore") else False
+            nodeName = _get_partial_lookup(nodeKey, self.static_data.name_lookup)
+            if nodeName:
+                total_missions += 1
+                if complete:
+                    total_completed_missions += 1
+                    highScore = mission.get("highScore", 0)
+                    if _check_hard_mode(nodeKey):
+                        steel_path.append({
+                            "node": nodeName,
+                            "highScore": highScore
+                        })
+                    else:
+                        regular.append({
+                            "node": nodeName,
+                            "highScore": highScore
+                        })
+
+        self._attr_extra_state_attributes = {
+            "steel_path": steel_path,
+            "regular": regular,
+            "total_missions": total_missions
+            }
+        self._attr_native_value = total_completed_missions / total_missions
+        self.async_write_ha_state()
+
+# class ProfileMostUsedSensor(CoordinatorEntity, SensorEntity):
+#     def __init__(self, coordinator, username, type):
+#         super().__init__(coordinator)
+
+#         self.username = username
+#         self.type = type
+#         self._name = username + " Most Used " + type.capitalize()
+#         self._state = 0
+#         self.attrs = {}
+#         self._available = True
+#         self.entity_id = f"sensor.warframe_{username}_most_used_{type}"
+
+#         self._icon = "mdi:map-marker-path"
+
+#     @property
+#     def device_info(self) -> DeviceInfo:
+#         """Return the device info."""
+#         return DeviceInfo(
+#             identifiers={(*profile_device_base_identifiers, self.username)},
+#             name=profile_device_base_name + self.username
+#         )
+
+#     @property
+#     def icon(self):
+#         return self._icon
+
+#     @property
+#     def state_class(self) -> SensorStateClass:
+#         """Handle string instances."""
+#         return SensorStateClass.MEASUREMENT
+
+#     @property
+#     def name(self) -> str:
+#         """Return the name of the entity."""
+#         return self._name
+
+#     @property
+#     def state(self) -> int | None:
+#         return self._state
+
+#     @property
+#     def extra_state_attributes(self) -> dict[str, Any]:
+#         return self.attrs
+
+#     @property
+#     def native_value(self) -> int:
+#         return self._state
+
+#     @property
+#     def unique_id(self):
+#         """Return a unique ID."""
+#         return f"sensor.warframe_{self.username}_most_used_{self.type}"
+
+#     @callback
+#     def _handle_coordinator_update(self):
+#         weapons_data = (
+#             self.coordinator.data.get(self.username, {}).get("weapons", [])
+#         )
+#         lookup = self.coordinator.data.get("lookup")
+
+#         self.attrs.update()
+#         self._state =
+#         self.async_write_ha_state()
+
+
+def _get_weapon_type(itemKey, lookup):
+    print("get_weapon_type")
+
+def _check_hard_mode(nodeKey):
+    return True if nodeKey.endswith("_HM") else False
 
 def _get_partial_lookup(to_lookup, lookup_table, default=None):
     to_lookup = to_lookup.lower()
@@ -1444,6 +1593,9 @@ def _get_partial_lookup(to_lookup, lookup_table, default=None):
         return data
     for lookup_key, data in lookup_table.items():
         ## if lookup key is substring
-        if lookup_key.startswith(to_lookup) or to_lookup.startswith(lookup_key) or lookup_key.startswith("/".join(to_lookup.split("/")[:-1])) or "/".join(to_lookup.split("/")[:-1]).startswith(lookup_key):
+        if lookup_key.startswith(to_lookup) or to_lookup.startswith(lookup_key):
+            return data
+    for lookup_key, data in lookup_table.items():
+        if lookup_key.startswith("/".join(to_lookup.split("/")[:-1])) or "/".join(to_lookup.split("/")[:-1]).startswith(lookup_key):
             return data
     return default
