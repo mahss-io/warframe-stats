@@ -26,6 +26,9 @@ from .const import (
     URL_PRE_PROFILE_ENDPOINT,
     URL_STATS_ENDPOINT,
     URL_STATIC_ITEM_ENDPOINT,
+    URL_STATIC_DATA_LOOKUP,
+    URL_STATIC_DATA_LOOKUP_QUERY_PARAMS,
+    ITEM_SETS_TO_INCLUDE
 )
 
 
@@ -46,13 +49,123 @@ class WarframeStaticDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         try:
-            await self._get_init_data(self.session)
+            # await self._get_init_data(self.session)
+            await self._get_item_data(self.session)
             await self._standardise_lookup()
         except Exception as err:
             print(err)
 
     async def _standardise_lookup(self):
         self.name_lookup = {k.lower(): v for k, v in self.name_lookup.items()}
+
+    async def _get_item_data(self, session):
+        static_data = await _makeRequest(f"{URL_BASE}{URL_STATIC_DATA_LOOKUP}{",".join(ITEM_SETS_TO_INCLUDE)}{URL_STATIC_DATA_LOOKUP_QUERY_PARAMS}", session)
+        for item in static_data:
+            match item.get("category"):
+                case "Warframe":
+                    # warframe
+                    self.name_lookup.update({
+                        item.get("uniqueName"): {
+                            "value": item.get("name"),
+                            "description": item.get("description")
+                        }
+                    })
+                    # abilities
+                    for ability in item.get("abilities", []):
+                        self.name_lookup.update({
+                        ability.get("uniqueName"): {
+                            "value": ability.get("name"),
+                            "description": ability.get("description")
+                            }
+                        })
+                case "Archwing":
+                    # archwing
+                    self.name_lookup.update({
+                        item.get("uniqueName"): {
+                            "value": item.get("name"),
+                            "description": item.get("description")
+                        }
+                    })
+                    # abilities
+                    for ability in item.get("abilities", []):
+                        self.name_lookup.update({
+                        ability.get("uniqueName"): {
+                            "value": ability.get("name"),
+                            "description": ability.get("description")
+                            }
+                        })
+                case "Sentinels":
+                    # sentinel
+                    self.name_lookup.update({
+                        item.get("uniqueName"): {
+                            "value": item.get("name"),
+                            "description": item.get("description")
+                        }
+                    })
+                case "Pets":
+                    # pet
+                    self.name_lookup.update({
+                        item.get("uniqueName"): {
+                            "value": item.get("name"),
+                            "description": item.get("description")
+                        }
+                    })
+                case "Primary":
+                    # primary
+                    self.name_lookup.update({
+                        item.get("uniqueName"): {
+                            "value": item.get("name"),
+                            "description": item.get("description")
+                        }
+                    })
+                case "Secondary":
+                    # secondary
+                    self.name_lookup.update({
+                        item.get("uniqueName"): {
+                            "value": item.get("name"),
+                            "description": item.get("description")
+                        }
+                    })
+                case "Melee":
+                    # melee
+                    self.name_lookup.update({
+                        item.get("uniqueName"): {
+                            "value": item.get("name"),
+                            "description": item.get("description")
+                        }
+                    })
+                case "Arch-Gun":
+                    # arch-gun
+                    self.name_lookup.update({
+                        item.get("uniqueName"): {
+                            "value": item.get("name"),
+                            "description": item.get("description")
+                        }
+                    })
+                case "Arch-Melee":
+                    # arch-melee
+                    self.name_lookup.update({
+                        item.get("uniqueName"): {
+                            "value": item.get("name"),
+                            "description": item.get("description")
+                        }
+                    })
+                case "Enemy":
+                    # enemy
+                    self.name_lookup.update({
+                        item.get("uniqueName"): {
+                            "value": item.get("name"),
+                            "description": item.get("description")
+                        }
+                    })
+                case "Node":
+                    # node
+                    self.name_lookup.update({
+                        item.get("uniqueName"): {
+                            "value": item.get("name"),
+                            "systemName": item.get("systemName")
+                        }
+                    })
 
     async def _get_init_data(self, session):
         # Sorties Modifiers

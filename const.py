@@ -47,6 +47,9 @@ URL_TRANSLATION_SYNDICATES_ENDPOINT = "syndicates"
 URL_TRANSLATION_MISSION_TYPES_ENDPOINT = "missionTypes"
 URL_TRANSLATION_OTHER_ENDPOINT = "languages"
 URL_TRANSLATION_WARFRAME_ENDPOINT = "warframes"
+URL_STATIC_DATA_LOOKUP = "items/search/"
+ITEM_SETS_TO_INCLUDE = ["Warframe","Pets","Sentinels","Node","Enemy","Primary","Melee","Secondary","Arch-Melee","Arch-Gun","Archwing"]
+URL_STATIC_DATA_LOOKUP_QUERY_PARAMS = "?by=category"
 
 URL_WORLD_STATE_ENDPOINT = "pc"
 URL_PRE_PROFILE_ENDPOINT = "profile/"
