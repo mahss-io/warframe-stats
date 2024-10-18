@@ -2,35 +2,30 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
-import logging
-import datetime
-
 from homeassistant.components.sensor import (
-    SensorDeviceClass,
+    RestoreSensor,
     SensorEntity,
     SensorStateClass,
-    RestoreSensor,
 )
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.core import HomeAssistant, callback
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.const import MATCH_ALL, STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_point_in_utc_time
-
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 import homeassistant.util.dt as dt_util
+
 from .const import DOMAIN
-from .coordinator import (
-    WarframeStaticDataUpdateCoordinator,
-    WarframeWorldstateDataUpdateCoordinator,
-    WarframeProfileDataUpdateCoordinator
-)
 
 _LOGGER = logging.getLogger(__name__)
+
+PARALLEL_UPDATES = 1
+
+IGNORED_STATES = {STATE_UNAVAILABLE, STATE_UNKNOWN}
 
 worldstate_device = DeviceInfo(
             identifiers={(DOMAIN, "worldstates")},
@@ -45,7 +40,11 @@ most_used_types = [
     "primary",
     "secondary",
     "melee",
-    "companion"
+    "companion",
+    "companion-weapon",
+    "archwing",
+    "arch-melee",
+    "arch-gun"
 ]
 
 async def async_setup_entry(
@@ -64,118 +63,116 @@ async def async_setup_entry(
     sensors = []
 
     if config.get("worldstates"):
-        sensors.append(WorldStateLastUpdateSensor(worldstateCoordinator, staticDataCoordinator))
+        sensors.append(LastUpdateSensor(worldstateCoordinator))
         if config.get("alerts"):
-            sensors.append(WorldStateAlertSensor(worldstateCoordinator))
+            sensors.append(AlertSensor(worldstateCoordinator))
         if config.get("archon_hunt"):
-            sensors.append(WorldStateArchonHuntSensor(worldstateCoordinator))
+            sensors.append(ArchonHuntSensor(worldstateCoordinator))
         if config.get("open_worlds"):
             cycle_keys = []
             for key in worldstateCoordinator.data.keys():
                 if key.endswith("Cycle"):
                     cycle_keys.append(key)
             for world_key in cycle_keys:
-                sensors.append(WorldStateWorldSensor(worldstateCoordinator, world_key))
+                sensors.append(WorldSensor(worldstateCoordinator, world_key))
         if config.get("relay_events"):
-            sensors.append(WorldStateRelayEventSensor(worldstateCoordinator))
-        if config.get("deep_archimedea"):
-            sensors.append(WorldStateDeepArchimdeaSensor(worldstateCoordinator))
+            sensors.append(RelayEventSensor(worldstateCoordinator))
         if config.get("events"):
-            sensors.append(WorldStateEventSensor(worldstateCoordinator))
+            sensors.append(EventSensor(worldstateCoordinator))
         if config.get("fissures"):
-            sensors.append(WorldStateFissureSensor(worldstateCoordinator, "regular"))
-            sensors.append(WorldStateFissureSensor(worldstateCoordinator, "steel_path"))
-            sensors.append(WorldStateFissureSensor(worldstateCoordinator, "void_storm"))
+            sensors.append(FissureSensor(worldstateCoordinator, "regular"))
+            sensors.append(FissureSensor(worldstateCoordinator, "steel_path"))
+            sensors.append(FissureSensor(worldstateCoordinator, "void_storm"))
         if config.get("invasions"):
-            sensors.append(WorldStateInvasionSensor(worldstateCoordinator))
+            sensors.append(InvasionSensor(worldstateCoordinator))
         if config.get("sorties"):
-            sensors.append(WorldStateSortieSensor(worldstateCoordinator))
+            sensors.append(SortieSensor(worldstateCoordinator))
         if config.get("steel_path"):
-            sensors.append(WorldStateSteelPathSensor(worldstateCoordinator))
+            sensors.append(SteelPathSensor(worldstateCoordinator))
         if config.get("void_trader"):
-            sensors.append(WorldStateVoidTraderSensor(worldstateCoordinator))
+            sensors.append(VoidTraderSensor(worldstateCoordinator))
         if config.get("varzia"):
-            sensors.append(WorldStateVarziaSensor(worldstateCoordinator))
+            sensors.append(VarziaSensor(worldstateCoordinator))
     if config.get("profiles"):
         for username in config.get("usernames"):
             if config.get("total_abilities_used"):
-                sensors.append(ProfileAbilitiesSensor(profileCoordinator, username, staticDataCoordinator))
+                sensors.append(AbilitiesSensor(profileCoordinator, username, staticDataCoordinator))
             if config.get("total_enemies_killed"):
-                sensors.append(ProfileEnemiesSensor(profileCoordinator, username, staticDataCoordinator))
+                sensors.append(EnemiesSensor(profileCoordinator, username, staticDataCoordinator))
             if config.get("most_scans"):
-                sensors.append(ProfileScansSensor(profileCoordinator, username, staticDataCoordinator))
+                sensors.append(ScansSensor(profileCoordinator, username, staticDataCoordinator))
             if config.get("credits"):
-                sensors.append(ProfileCreditSensor(profileCoordinator, username))
+                sensors.append(CreditSensor(profileCoordinator, username))
             if config.get("rank"):
-                sensors.append(ProfileRankSensor(profileCoordinator, username))
+                sensors.append(RankSensor(profileCoordinator, username))
             if config.get("death"):
-                sensors.append(ProfileDeathSensor(profileCoordinator, username, staticDataCoordinator))
+                sensors.append(DeathSensor(profileCoordinator, username, staticDataCoordinator))
             if config.get("time_played"):
-                sensors.append(ProfileTimePlayedSensor(profileCoordinator, username))
+                sensors.append(TimePlayedSensor(profileCoordinator, username))
             if config.get("star_chart_completion"):
-                sensors.append(ProfileStarChartSensor(profileCoordinator, username, staticDataCoordinator))
-            # for type in most_used_types:
-            #     if config.get("most_used_warframe") and type == "warframe":
-            #         sensors.append(ProfileMostUsedSensor(coordinator, username, type))
-            #     if config.get("most_used_primary") and type == "primary":
-            #         sensors.append(ProfileMostUsedSensor(coordinator, username, type))
-            #     if config.get("most_used_secondary") and type == "secondary":
-            #         sensors.append(ProfileMostUsedSensor(coordinator, username, type))
-            #     if config.get("most_used_melee") and type == "melee":
-            #         sensors.append(ProfileMostUsedSensor(coordinator, username, type))
-            #     if config.get("most_used_companion") and type == "companion":
-            #         sensors.append(ProfileMostUsedSensor(coordinator, username, type))
+                sensors.append(StarChartSensor(profileCoordinator, username, staticDataCoordinator))
+            for type in most_used_types:
+                sensors.append(MostUsedSensor(profileCoordinator, username, staticDataCoordinator, type))
 
     async_add_entities(sensors, True)
 
-class WorldStateAlertSensor(CoordinatorEntity, SensorEntity):
+class BaseWarframeSensor(CoordinatorEntity, RestoreSensor, SensorEntity):
+    _attr_icon = "mdi:controller"
+    _attr_native_value: float | None = None
+    _attr_extra_state_attributes: dict | None = {}
+    _unrecorded_attributes = frozenset({MATCH_ALL})
+
+    _base_id = "sensor.warframe_"
+
     def __init__(self, coordinator):
         super().__init__(coordinator)
 
-        self._name = "Alerts"
-        self._state = 0
-        self._attr_extra_state_attributes = {}
-        self.attrs = {}
-        self._available = True
-        self.entity_id = "sensor.warframe_alerts"
+    async def async_added_to_hass(self) -> None:
+        """Restore state on startup."""
+        await super().async_added_to_hass()
 
-        self._icon = "mdi:alert"
+        last_state = await self.async_get_last_state()
+        last_sensor_data = await self.async_get_last_sensor_data()
 
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return worldstate_device
+        if not last_state or not last_sensor_data or last_state.state in IGNORED_STATES:
+            return
 
-    @property
-    def icon(self):
-        return self._icon
+        self._attr_native_value = last_sensor_data.native_value
 
-    @property
-    def state_class(self) -> SensorStateClass:
-        """Handle string instances."""
-        return SensorStateClass.MEASUREMENT
+class WorldStateSesnor(BaseWarframeSensor):
+    _attr_icon = "mdi:earth"
+    _worldstate_name = "worldstate_"
 
-    @property
-    def name(self) -> str:
-        """Return the name of the entity."""
-        return self._name
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
 
-    @property
-    def state(self) -> int | None:
-        return self._state
+        self._attr_device_info = worldstate_device
 
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return self.attrs
+class ProfileSensor(BaseWarframeSensor):
+    _attr_icon = "mdi:earth"
 
-    @property
-    def native_value(self) -> int:
-        return self._state
+    def __init__(self, coordinator, username):
+        super().__init__(coordinator)
 
-    @property
-    def unique_id(self):
-        """Return a unique ID."""
-        return "sensor.warframe_alerts"
+        self.username = username
+
+        self._attr_device_info = DeviceInfo(
+            identifiers={(*profile_device_base_identifiers, username)},
+            name=profile_device_base_name + username
+        )
+
+
+class AlertSensor(WorldStateSesnor):
+    _attr_icon = "mdi:alert"
+    _attr_native_value: int | None = 0
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+
+        self._attr_name = "Alert"
+        self._attr_unique_id = f"{self._base_id}{self._worldstate_name}alerts"
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -200,57 +197,19 @@ class WorldStateAlertSensor(CoordinatorEntity, SensorEntity):
             }
             missions.append(data)
             alert_count += 1
-        self.attrs.update({"missions": missions})
-        self._state = alert_count
+        self._attr_extra_state_attributes = {"missions": missions}
+        self._attr_native_value = alert_count
         self.async_write_ha_state()
 
-class WorldStateArchonHuntSensor(CoordinatorEntity, SensorEntity):
+class ArchonHuntSensor(WorldStateSesnor):
+    _attr_icon = "mdi:calendar-week"
+
     def __init__(self, coordinator):
         super().__init__(coordinator)
 
-        self._name = "Archon Hunt"
-        self._state = None
-        self.attrs = {}
-        self._available = True
-        self.entity_id = "sensor.warframe_archon_hunt"
-
-        self._icon = "mdi:calendar-week"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return worldstate_device
-
-    @property
-    def icon(self):
-        return self._icon
-
-    @property
-    def state_class(self) -> SensorStateClass:
-        """Handle string instances."""
-        return SensorStateClass.MEASUREMENT
-
-    @property
-    def name(self) -> str:
-        """Return the name of the entity."""
-        return self._name
-
-    @property
-    def state(self) -> int | None:
-        return self._state
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return self.attrs
-
-    @property
-    def native_value(self) -> int:
-        return self._state
-
-    @property
-    def unique_id(self):
-        """Return a unique ID."""
-        return "sensor.warframe_archon_hunt"
+        self._attr_name = "Archon Hunt"
+        self._attr_unique_id = f"{self._base_id}{self._worldstate_name}archon_hunt"
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -265,58 +224,21 @@ class WorldStateArchonHuntSensor(CoordinatorEntity, SensorEntity):
         for mission in archon_hunt_data.get("missions", [default_alert]):
             data = {"node": mission.get("node"), "missionType": mission.get("type")}
             missions.append(data)
-        self.attrs.update({"missions": missions})
-        self._state = state
+        self._attr_extra_state_attributes = {"missions": missions}
+        self._attr_native_value = state
         self.async_write_ha_state()
 
-class WorldStateWorldSensor(CoordinatorEntity, SensorEntity):
+class WorldSensor(WorldStateSesnor):
+    _attr_icon = "mdi:earth"
+
     def __init__(self, coordinator, world_key):
-        super().__init__(coordinator, world_key)
+        super().__init__(coordinator)
+
         self.world_name = world_key.replace("Cycle", "")
         self.world_key = world_key
-        self._name = self.world_name.capitalize() + " Cycle"
-        self._state = None
-        self.attrs = {}
-        self._available = True
-        self.entity_id = "sensor.warframe_" + self.world_name + "_cycle"
-
-        self._icon = "mdi:earth"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return worldstate_device
-
-    @property
-    def icon(self):
-        return self._icon
-
-    @property
-    def state_class(self) -> SensorStateClass:
-        """Handle string instances."""
-        return SensorStateClass.MEASUREMENT
-
-    @property
-    def name(self) -> str:
-        """Return the name of the entity."""
-        return self._name
-
-    @property
-    def state(self) -> int | None:
-        return self._state
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return self.attrs
-
-    @property
-    def native_value(self) -> int:
-        return self._state
-
-    @property
-    def unique_id(self):
-        """Return a unique ID."""
-        return "sensor.warframe_" + self.world_name + "_cycle"
+        self._attr_name = self.world_name.capitalize() + " Cycle"
+        self._attr_unique_id = f"{self._base_id}{self._worldstate_name}{self.world_name}_cycle"
+        self.entity_id = self._attr_unique_id
 
     # @callback
     # def async_update_at_time(self, now: datetime.datetime) -> None:
@@ -356,54 +278,19 @@ class WorldStateWorldSensor(CoordinatorEntity, SensorEntity):
         #     async_track_point_in_utc_time(
         #         self.hass, self.async_update_at_time, expiry
         #     )
-        self.attrs.update({"expiry": expiry})
-        self._state = world_state_data.get("state")
+        self._attr_extra_state_attributes = {"expiry": expiry}
+        self._attr_native_value = world_state_data.get("state")
         self.async_write_ha_state()
 
-class WorldStateRelayEventSensor(CoordinatorEntity, SensorEntity):
+class RelayEventSensor(WorldStateSesnor):
+    _attr_icon = "mdi:calendar-alert"
+
     def __init__(self, coordinator):
         super().__init__(coordinator)
 
-        self._name = "Relay Events"
-        self._state = "None"
-        self._attr_extra_state_attributes = {}
-        self.attrs = {}
-        self._available = True
-        self.entity_id = "sensor.warframe_relay_events"
-
-        self._icon = "mdi:calendar-alert"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return worldstate_device
-
-    @property
-    def icon(self):
-        return self._icon
-
-    @property
-    def state_class(self) -> SensorStateClass:
-        return SensorStateClass.MEASUREMENT
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def state(self) -> int | None:
-        return self._state
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return self.attrs
-
-    @property
-    def native_value(self) -> int:
-        return self._state
-
-    @property
-    def unique_id(self):
-        return "sensor.warframe_relay_events"
+        self._attr_name = "Relay Events"
+        self._attr_unique_id = f"{self._base_id}{self._worldstate_name}relay_events"
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -414,123 +301,19 @@ class WorldStateRelayEventSensor(CoordinatorEntity, SensorEntity):
         fomorian = float(relay_event_data.get("fomorianProgress", "0"))
         razorback = float(relay_event_data.get("razorbackProgress", "0"))
 
-        self.attrs.update({"fomorian": fomorian,"razorback":razorback})
-        self._state = "Ongoing" if fomorian >= 100 or razorback >= 100 else "None"
+        self._attr_extra_state_attributes = {"fomorian": fomorian,"razorback": razorback}
+        self._attr_native_value = "Ongoing" if fomorian >= 100 or razorback >= 100 else "None"
         self.async_write_ha_state()
 
-class WorldStateDeepArchimdeaSensor(CoordinatorEntity, SensorEntity):
+class EventSensor(WorldStateSesnor):
+    _attr_icon = "mdi:calendar-star"
+
     def __init__(self, coordinator):
         super().__init__(coordinator)
 
-        self._name = "Deep Archimdea"
-        self._state = "None"
-        self._attr_extra_state_attributes = {}
-        self.attrs = {}
-        self._available = True
-        self.entity_id = "sensor.warframe_deep_archimdea"
-
-        self._icon = "mdi:bolt"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return worldstate_device
-
-    @property
-    def icon(self):
-        return self._icon
-
-    @property
-    def state_class(self) -> SensorStateClass:
-        return SensorStateClass.MEASUREMENT
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def state(self) -> int | None:
-        return self._state
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return self.attrs
-
-    @property
-    def native_value(self) -> int:
-        return self._state
-
-    @property
-    def unique_id(self):
-        return "sensor.warframe_deep_archimdea"
-
-    @callback
-    def _handle_coordinator_update(self):
-        deep_archimdea_data = (
-            self.coordinator.data.get("deepArchimedea", {})
-        )
-
-        missions_data = deep_archimdea_data.get("missions", {})
-        state = ""
-        index = 0
-        for mission in missions_data:
-            mission_name =  mission.get("mission", "Unknown")
-            state += mission_name
-            if index < len(missions_data)-1:
-                state += " - "
-            index += 1
-
-        personalModifiers = []
-        personalModifiers_data = deep_archimdea_data.get("personalModifiers", {})
-        for modifier in personalModifiers_data:
-            data = {"name":modifier.get("name"),"description":modifier.get("description")}
-            personalModifiers.append(data)
-        self.attrs.update({"personalModifiers": personalModifiers})
-        self._state = state
-        self.async_write_ha_state()
-
-class WorldStateEventSensor(CoordinatorEntity, SensorEntity):
-    def __init__(self, coordinator):
-        super().__init__(coordinator)
-
-        self._name = "Events"
-        self._state = 0
-        self.attrs = {}
-        self._available = True
-        self.entity_id = "sensor.warframe_events"
-
-        self._icon = "mdi:calendar-star"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return worldstate_device
-
-    @property
-    def icon(self):
-        return self._icon
-
-    @property
-    def state_class(self) -> SensorStateClass:
-        return SensorStateClass.MEASUREMENT
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def state(self) -> int | None:
-        return self._state
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return self.attrs
-
-    @property
-    def native_value(self) -> int:
-        return self._state
-
-    @property
-    def unique_id(self):
-        return "sensor.warframe_events"
+        self._attr_name = "Events"
+        self._attr_unique_id = f"{self._base_id}{self._worldstate_name}events"
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -545,54 +328,20 @@ class WorldStateEventSensor(CoordinatorEntity, SensorEntity):
             event_data.update({"name": event.get("description")})
 
 
-        self.attrs = event_data
-        self._state = event_count
+        self._attr_extra_state_attributes = event_data
+        self._attr_native_value = event_count
         self.async_write_ha_state()
 
-class WorldStateFissureSensor(CoordinatorEntity, SensorEntity):
+class FissureSensor(WorldStateSesnor):
+    _attr_icon = "mdi:ballot-outline"
+
     def __init__(self, coordinator, fissure_type):
         super().__init__(coordinator)
 
         self.fissure_type = fissure_type
-        self._name = fissure_type.capitalize().replace("_", " ") + " Fissures"
-        self._state = 0
-        self.attrs = {}
-        self._available = True
-        self.entity_id = "sensor.warframe_"+ fissure_type + "_fissures"
-
-        self._icon = "mdi:ballot-outline"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return worldstate_device
-
-    @property
-    def icon(self):
-        return self._icon
-
-    @property
-    def state_class(self) -> SensorStateClass:
-        return SensorStateClass.MEASUREMENT
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def state(self) -> int | None:
-        return self._state
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return self.attrs
-
-    @property
-    def native_value(self) -> int:
-        return self._state
-
-    @property
-    def unique_id(self):
-        return "sensor.warframe_"+ self.fissure_type + "_fissures"
+        self._attr_name = fissure_type.capitalize().replace("_", " ") + " Fissures"
+        self._attr_unique_id = f"{self._base_id}{self._worldstate_name}{fissure_type}_fissures"
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -628,53 +377,19 @@ class WorldStateFissureSensor(CoordinatorEntity, SensorEntity):
                         "enemy": fissure.get("enemy"),
                         "tier": fissure.get("tier")
                     })
-        self.attrs.update({"fissures":data})
-        self._state = count
+        self._attr_extra_state_attributes = {"fissures":data}
+        self._attr_native_value = count
         self.async_write_ha_state()
 
-class WorldStateInvasionSensor(CoordinatorEntity, SensorEntity):
+class InvasionSensor(WorldStateSesnor):
+    _attr_icon = "mdi:ammunition"
+
     def __init__(self, coordinator):
         super().__init__(coordinator)
 
-        self._name = "Invasions"
-        self._state = 0
-        self.attrs = {}
-        self._available = True
-        self.entity_id = "sensor.warframe_invasions"
-
-        self._icon = "mdi:ammunition"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return worldstate_device
-
-    @property
-    def icon(self):
-        return self._icon
-
-    @property
-    def state_class(self) -> SensorStateClass:
-        return SensorStateClass.MEASUREMENT
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def state(self) -> int | None:
-        return self._state
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return self.attrs
-
-    @property
-    def native_value(self) -> int:
-        return self._state
-
-    @property
-    def unique_id(self):
-        return "sensor.warframe_invasions"
+        self._attr_name = "Invasions"
+        self._attr_unique_id = f"{self._base_id}{self._worldstate_name}invasions"
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -692,53 +407,19 @@ class WorldStateInvasionSensor(CoordinatorEntity, SensorEntity):
                     "rewardTypes": invasion.get("rewardTypes"),
                     "enemy": invasion.get("defender").get("faction")
                 })
-        self.attrs.update({"invasions":data})
-        self._state = count
+        self._attr_extra_state_attributes = {"invasions":data}
+        self._attr_native_value = count
         self.async_write_ha_state()
 
-class WorldStateSortieSensor(CoordinatorEntity, SensorEntity):
+class SortieSensor(WorldStateSesnor):
+    _attr_icon = "mdi:calendar-today"
+
     def __init__(self, coordinator):
         super().__init__(coordinator)
 
-        self._name = "Sorties"
-        self._state = ""
-        self.attrs = {}
-        self._available = True
-        self.entity_id = "sensor.warframe_"
-
-        self._icon = "mdi:calendar-today"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return worldstate_device
-
-    @property
-    def icon(self):
-        return self._icon
-
-    @property
-    def state_class(self) -> SensorStateClass:
-        return SensorStateClass.MEASUREMENT
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def state(self) -> int | None:
-        return self._state
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return self.attrs
-
-    @property
-    def native_value(self) -> int:
-        return self._state
-
-    @property
-    def unique_id(self):
-        return "sensor.warframe_"
+        self._attr_name = "Sorties"
+        self._attr_unique_id = f"{self._base_id}{self._worldstate_name}sorties"
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -763,53 +444,19 @@ class WorldStateSortieSensor(CoordinatorEntity, SensorEntity):
                 state += " - "
             index += 1
 
-        self.attrs.update({"missions": missions_data})
-        self._state = state
+        self._attr_extra_state_attributes = {"missions": missions_data}
+        self._attr_native_value = state
         self.async_write_ha_state()
 
-class WorldStateSteelPathSensor(CoordinatorEntity, SensorEntity):
+class SteelPathSensor(WorldStateSesnor):
+    _attr_icon = "mdi:calendar-week"
+
     def __init__(self, coordinator):
         super().__init__(coordinator)
 
-        self._name = "Steel Path Honor"
-        self._state = ""
-        self.attrs = {}
-        self._available = True
-        self.entity_id = "sensor.warframe_steel_path_teshin"
-
-        self._icon = "mdi:calendar-week"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return worldstate_device
-
-    @property
-    def icon(self):
-        return self._icon
-
-    @property
-    def state_class(self) -> SensorStateClass:
-        return SensorStateClass.MEASUREMENT
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def state(self) -> int | None:
-        return self._state
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return self.attrs
-
-    @property
-    def native_value(self) -> int:
-        return self._state
-
-    @property
-    def unique_id(self):
-        return "sensor.warframe_steel_path_teshin"
+        self._attr_name = "Steel Path Honors"
+        self._attr_unique_id = f"{self._base_id}{self._worldstate_name}steel_path_teshin"
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -817,52 +464,18 @@ class WorldStateSteelPathSensor(CoordinatorEntity, SensorEntity):
             self.coordinator.data.get("steelPath", {})
         )
 
-        self._state = _data.get("currentReward", {}).get("name")
+        self._attr_native_value = _data.get("currentReward", {}).get("name")
         self.async_write_ha_state()
 
-class WorldStateVoidTraderSensor(CoordinatorEntity, SensorEntity):
+class VoidTraderSensor(WorldStateSesnor):
+    _attr_icon = "mdi:storefront-outline"
+
     def __init__(self, coordinator):
         super().__init__(coordinator)
 
-        self._name = "Void Trader"
-        self._state = "Inactive "
-        self.attrs = {}
-        self._available = True
-        self.entity_id = "sensor.warframe_void_trader"
-
-        self._icon = "mdi:storefront-outline"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return worldstate_device
-
-    @property
-    def icon(self):
-        return self._icon
-
-    @property
-    def state_class(self) -> SensorStateClass:
-        return SensorStateClass.MEASUREMENT
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def state(self) -> int | None:
-        return self._state
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return self.attrs
-
-    @property
-    def native_value(self) -> int:
-        return self._state
-
-    @property
-    def unique_id(self):
-        return "sensor.warframe_void_trader"
+        self._attr_name = "Void Trader"
+        self._attr_unique_id = f"{self._base_id}{self._worldstate_name}void_trader"
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -871,56 +484,22 @@ class WorldStateVoidTraderSensor(CoordinatorEntity, SensorEntity):
         )
 
         if _data.get("active"):
-            self._state = "Active"
-            self.attrs.update({"inventory": _data.get("inventory")})
+            self._attr_native_value = "Active"
+            self._attr_extra_state_attributes = {"inventory": _data.get("inventory")}
         else:
-            self._state = "Inactive"
-            self.attrs.update({"inventory": []})
+            self._attr_native_value = "Inactive"
+            self._attr_extra_state_attributes = {"inventory": []}
         self.async_write_ha_state()
 
-class WorldStateVarziaSensor(CoordinatorEntity, SensorEntity):
+class VarziaSensor(WorldStateSesnor):
+    _attr_icon = "mdi:storefront-outline"
+
     def __init__(self, coordinator):
         super().__init__(coordinator)
 
-        self._name = "Primed Resurgence"
-        self._state = 0
-        self.attrs = {}
-        self._available = True
-        self.entity_id = "sensor.warframe_prime_resurgence_rotation"
-
-        self._icon = "mdi:storefront-outline"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return worldstate_device
-
-    @property
-    def icon(self):
-        return self._icon
-
-    @property
-    def state_class(self) -> SensorStateClass:
-        return SensorStateClass.MEASUREMENT
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def state(self) -> int | None:
-        return self._state
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return self.attrs
-
-    @property
-    def native_value(self) -> int:
-        return self._state
-
-    @property
-    def unique_id(self):
-        return "sensor.warframe_prime_resurgence_rotation"
+        self._attr_name = "Primed Resurgence"
+        self._attr_unique_id = f"{self._base_id}{self._worldstate_name}prime_resurgence_rotation"
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -940,28 +519,19 @@ class WorldStateVarziaSensor(CoordinatorEntity, SensorEntity):
             })
             count += 1
 
-        self.attrs.update({"items":data})
-        self._state = count
+        self._attr_extra_state_attributes = {"items":data}
+        self._attr_native_value = count
         self.async_write_ha_state()
 
-class WorldStateLastUpdateSensor(CoordinatorEntity, RestoreSensor, SensorEntity):
-    _attr_icon = "mdi:mdi-newspaper"
-    _attr_native_value: float | None = None
-    _attr_extra_state_attributes: dict | None = {}
+class LastUpdateSensor(WorldStateSesnor):
+    _attr_icon = "mdi:newspaper"
 
-    def __init__(self, coordinator, staticDataCoordinator):
+    def __init__(self, coordinator):
         super().__init__(coordinator)
 
-        self.static_data = staticDataCoordinator
         self._attr_name = "Last Update"
-        self._attr_unique_id = "sensor.warframe_last_update"
-        self._attr_device_info = worldstate_device
-
-    async def async_added_to_hass(self) -> None:
-        """Handle entity which will be added."""
-        if state := await self.async_get_last_state():
-            self._attr_native_value = state.state
-        await super().async_added_to_hass()
+        self._attr_unique_id = f"{self._base_id}{self._worldstate_name}last_update"
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -983,23 +553,16 @@ class WorldStateLastUpdateSensor(CoordinatorEntity, RestoreSensor, SensorEntity)
         self.async_write_ha_state()
 
 
-class ProfileAbilitiesSensor(CoordinatorEntity, SensorEntity):
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+class AbilitiesSensor(ProfileSensor):
     _attr_icon = "mdi:exclamation-thick"
-    _attr_native_value: float | None = None
-    _attr_extra_state_attributes: dict | None = {}
 
     def __init__(self, coordinator, username, staticDataCoordinator):
-        super().__init__(coordinator)
+        super().__init__(coordinator, username)
 
-        self.username = username
         self.static_data = staticDataCoordinator
-        self._attr_name = username + " Abilities Used"
-        self._attr_unique_id = f"sensor.warframe_{username}_abilities_used"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(*profile_device_base_identifiers, self.username)},
-            name=profile_device_base_name + self.username
-        )
+        self._attr_name = self.username + " Abilities Used"
+        self._attr_unique_id = f"sensor.warframe_{self.username}_abilities_used"
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -1012,7 +575,7 @@ class ProfileAbilitiesSensor(CoordinatorEntity, SensorEntity):
         for ability in user_ability_data:
             key = ability.get("uniqueName")
             used = int(ability.get("used", 0))
-            ability_name = _get_partial_lookup(key, self.static_data.name_lookup)
+            ability_name = self.static_data.name_lookup.get(key.lower())
             ability_count += used
             abilities_used.append({
                 "name": ability_name.get("value") if isinstance(ability_name, dict) else key,
@@ -1023,31 +586,17 @@ class ProfileAbilitiesSensor(CoordinatorEntity, SensorEntity):
         self._attr_native_value = ability_count
         self.async_write_ha_state()
 
-class ProfileEnemiesSensor(CoordinatorEntity, SensorEntity):
+class EnemiesSensor(ProfileSensor):
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_icon = "mdi:ammunition"
-    _attr_native_value: float | None = None
-    _attr_extra_state_attributes: dict | None = {}
 
     def __init__(self, coordinator, username, staticDataCoordinator):
-        super().__init__(coordinator)
+        super().__init__(coordinator, username)
 
-        self.username = username
         self.static_data = staticDataCoordinator
         self._attr_name = username + " Enemies Killed"
         self._attr_unique_id = f"sensor.warframe_{username}_enemies_killed"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(*profile_device_base_identifiers, self.username)},
-            name=profile_device_base_name + self.username
-        )
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return the device info."""
-        return DeviceInfo(
-            identifiers={(*profile_device_base_identifiers, self.username)},
-            name=profile_device_base_name + self.username
-        )
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -1060,7 +609,7 @@ class ProfileEnemiesSensor(CoordinatorEntity, SensorEntity):
         for enemy in user_enemie_data:
             key = enemy.get("uniqueName")
             killed = int(enemy.get("kills", 0))
-            enemy_name = _get_partial_lookup(key, self.static_data.name_lookup)
+            enemy_name = self.static_data.name_lookup.get(key.lower())
             enemies_killed_count += killed
             enemies_killed.append({
                 "name": enemy_name.get("value") if isinstance(enemy_name, dict) else key,
@@ -1071,22 +620,16 @@ class ProfileEnemiesSensor(CoordinatorEntity, SensorEntity):
         self._attr_native_value = enemies_killed_count
         self.async_write_ha_state()
 
-class ProfileScansSensor(CoordinatorEntity, SensorEntity):
+class ScansSensor(ProfileSensor):
     _attr_icon = "mdi:skull-scan-outline"
-    _attr_native_value: float | None = None
-    _attr_extra_state_attributes: dict | None = {}
 
     def __init__(self, coordinator, username, staticDataCoordinator):
-        super().__init__(coordinator)
+        super().__init__(coordinator, username)
 
-        self.username = username
         self.static_data = staticDataCoordinator
         self._attr_name = username + " Most Scans"
         self._attr_unique_id = f"sensor.warframe_{username}_most_scans"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(*profile_device_base_identifiers, self.username)},
-            name=profile_device_base_name + self.username
-        )
+        self.entity_id = self._attr_unique_id
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -1108,7 +651,7 @@ class ProfileScansSensor(CoordinatorEntity, SensorEntity):
         for enemy in user_enemie_data:
             key = enemy.get("uniqueName")
             scans = int(enemy.get("scans", 0))
-            item_name = _get_partial_lookup(key, self.static_data.name_lookup)
+            item_name = self.static_data.name_lookup.get(key.lower())
             if max_scan_amount < scans:
                 max_scan_amount = scans
                 max_scan_item = item_name.get("value") if isinstance(item_name, dict) else key
@@ -1122,22 +665,16 @@ class ProfileScansSensor(CoordinatorEntity, SensorEntity):
         self._attr_native_value = max_scan_item
         self.async_write_ha_state()
 
-class ProfileCreditSensor(CoordinatorEntity, SensorEntity):
+class CreditSensor(ProfileSensor):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:micro-sd"
-    _attr_native_value: float | None = None
-    _attr_extra_state_attributes: dict | None = {}
 
     def __init__(self, coordinator, username):
-        super().__init__(coordinator)
+        super().__init__(coordinator, username)
 
-        self.username = username
         self._attr_name = username + " Total Credits"
         self._attr_unique_id = f"sensor.warframe_{username}_total_credits"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(*profile_device_base_identifiers, self.username)},
-            name=profile_device_base_name + self.username
-        )
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -1145,28 +682,22 @@ class ProfileCreditSensor(CoordinatorEntity, SensorEntity):
             self.coordinator.data.get(self.username, {}).get("income", 0)
         )
         time_played_seconds_data = (
-            self.coordinator.data.get(self.username, {}).get("timePlayedSec", 0)
+            self.coordinator.data.get(self.username, {}).get("timePlayedSec", 0.0)
         )
 
-        self._attr_extra_state_attributes.update({"credits_per_hour": credit_data/((time_played_seconds_data/60)/60)})
+        self._attr_extra_state_attributes.update({"credits_per_hour": 0 if time_played_seconds_data == 0.0 else (credit_data/((time_played_seconds_data/60.0)/60.0))})
         self._attr_native_value = credit_data
         self.async_write_ha_state()
 
-class ProfileRankSensor(CoordinatorEntity, SensorEntity):
+class RankSensor(ProfileSensor):
     _attr_icon = "mdi:chevron-triple-up"
-    _attr_native_value: float | None = None
-    _attr_extra_state_attributes: dict | None = {}
 
     def __init__(self, coordinator, username):
-        super().__init__(coordinator)
+        super().__init__(coordinator, username)
 
-        self.username = username
         self._attr_name = username + " Rank"
         self._attr_unique_id = f"sensor.warframe_{username}_rank"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(*profile_device_base_identifiers, self.username)},
-            name=profile_device_base_name + self.username
-        )
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -1183,27 +714,21 @@ class ProfileRankSensor(CoordinatorEntity, SensorEntity):
             self.coordinator.data.get(self.username, {}).get("timePlayedSec", 0)
         )
 
-        self._attr_extra_state_attributes.update({"rank_per_day": rank_data/(((time_played_seconds_data/60)/60)/24)})
+        # self._attr_extra_state_attributes.update({"rank_per_day": rank_data/(((time_played_seconds_data/60)/60)/24)})
         self._attr_native_value = ("Legendary " if is_legendary else "") + str(rank)
         self.async_write_ha_state()
 
-class ProfileDeathSensor(CoordinatorEntity, SensorEntity):
+class DeathSensor(ProfileSensor):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:robot-dead-outline"
-    _attr_native_value: float | None = None
-    _attr_extra_state_attributes: dict | None = {}
 
     def __init__(self, coordinator, username, staticDataCoordinator):
-        super().__init__(coordinator)
+        super().__init__(coordinator, username)
 
-        self.username = username
         self.static_data = staticDataCoordinator
         self._attr_name = username + " Deaths"
         self._attr_unique_id = f"sensor.warframe_{username}_deaths"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(*profile_device_base_identifiers, self.username)},
-            name=profile_device_base_name + self.username
-        )
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -1219,7 +744,7 @@ class ProfileDeathSensor(CoordinatorEntity, SensorEntity):
             if enemy.get("deaths"):
                 key = enemy.get("uniqueName")
                 deaths = int(enemy.get("deaths", 0))
-                enemy_name = _get_partial_lookup(key, self.static_data.name_lookup)
+                enemy_name = self.static_data.name_lookup.get(key.lower())
                 enemies_that_killed_player.append({
                     "name": enemy_name.get("value") if isinstance(enemy_name, dict) else key,
                     "deaths": deaths
@@ -1229,22 +754,16 @@ class ProfileDeathSensor(CoordinatorEntity, SensorEntity):
         self._attr_native_value = death_data
         self.async_write_ha_state()
 
-class ProfileTimePlayedSensor(CoordinatorEntity, SensorEntity):
+class TimePlayedSensor(ProfileSensor):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:timer-alert-outline"
-    _attr_native_value: float | None = None
-    _attr_extra_state_attributes: dict | None = {}
 
     def __init__(self, coordinator, username):
-        super().__init__(coordinator)
+        super().__init__(coordinator, username)
 
-        self.username = username
         self._attr_name = username + " Time Played"
         self._attr_unique_id = f"sensor.warframe_{username}_time_played"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(*profile_device_base_identifiers, self.username)},
-            name=profile_device_base_name + self.username
-        )
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -1264,26 +783,20 @@ class ProfileTimePlayedSensor(CoordinatorEntity, SensorEntity):
             "days_played": days_played,
             "months_played": months_played,
             })
-        self._attr_native_value = hours_played
+        self._attr_native_value = round(hours_played, 2)
         self.async_write_ha_state()
 
-class ProfileStarChartSensor(CoordinatorEntity, SensorEntity):
+class StarChartSensor(ProfileSensor):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:map-marker-path"
-    _attr_native_value: float | None = None
-    _attr_extra_state_attributes: dict | None = {}
 
     def __init__(self, coordinator, username, staticDataCoordinator):
-        super().__init__(coordinator)
+        super().__init__(coordinator, username)
 
-        self.username = username
         self.static_data = staticDataCoordinator
         self._attr_name = username + " Star Chart Completion"
         self._attr_unique_id = f"sensor.warframe_{username}_star_chart_completion"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(*profile_device_base_identifiers, self.username)},
-            name=profile_device_base_name + self.username
-        )
+        self.entity_id = self._attr_unique_id
 
     @callback
     def _handle_coordinator_update(self):
@@ -1298,7 +811,7 @@ class ProfileStarChartSensor(CoordinatorEntity, SensorEntity):
         for mission in mission_data:
             nodeKey = mission.get("nodeKey")
             complete = True if mission.get("highScore") else False
-            nodeName = _get_partial_lookup(nodeKey, self.static_data.name_lookup)
+            nodeName = self.static_data.name_lookup.get(nodeKey.lower())
             if nodeName:
                 total_missions += 1
                 if complete:
@@ -1320,76 +833,46 @@ class ProfileStarChartSensor(CoordinatorEntity, SensorEntity):
             "regular": regular,
             "total_missions": total_missions
             }
-        self._attr_native_value = total_completed_missions / total_missions
+        self._attr_native_value = total_completed_missions / total_missions if total_missions else 0
         self.async_write_ha_state()
 
-# class ProfileMostUsedSensor(CoordinatorEntity, SensorEntity):
-#     def __init__(self, coordinator, username, type):
-#         super().__init__(coordinator)
+class MostUsedSensor(ProfileSensor):
+    _attr_icon = "mdi:chart-donut"
 
-#         self.username = username
-#         self.type = type
-#         self._name = username + " Most Used " + type.capitalize()
-#         self._state = 0
-#         self.attrs = {}
-#         self._available = True
-#         self.entity_id = f"sensor.warframe_{username}_most_used_{type}"
+    def __init__(self, coordinator, username, staticDataCoordinator, type):
+        super().__init__(coordinator, username)
 
-#         self._icon = "mdi:map-marker-path"
+        self.static_data = staticDataCoordinator
+        self.type = type
+        self._attr_name = username + " Most Used " + type.capitalize()
+        self._attr_unique_id = f"sensor.warframe_{username}_most_used_{type}"
+        self.entity_id = self._attr_unique_id
 
-#     @property
-#     def device_info(self) -> DeviceInfo:
-#         """Return the device info."""
-#         return DeviceInfo(
-#             identifiers={(*profile_device_base_identifiers, self.username)},
-#             name=profile_device_base_name + self.username
-#         )
+    @callback
+    def _handle_coordinator_update(self):
+        weapon_data = (
+            self.coordinator.data.get(self.username, {}).get("weapons", [])
+        )
+        lookup = self.static_data.name_lookup
 
-#     @property
-#     def icon(self):
-#         return self._icon
+        most_used_key = ""
+        most_equip_time = 0
 
-#     @property
-#     def state_class(self) -> SensorStateClass:
-#         """Handle string instances."""
-#         return SensorStateClass.MEASUREMENT
+        weapons = []
 
-#     @property
-#     def name(self) -> str:
-#         """Return the name of the entity."""
-#         return self._name
-
-#     @property
-#     def state(self) -> int | None:
-#         return self._state
-
-#     @property
-#     def extra_state_attributes(self) -> dict[str, Any]:
-#         return self.attrs
-
-#     @property
-#     def native_value(self) -> int:
-#         return self._state
-
-#     @property
-#     def unique_id(self):
-#         """Return a unique ID."""
-#         return f"sensor.warframe_{self.username}_most_used_{self.type}"
-
-#     @callback
-#     def _handle_coordinator_update(self):
-#         weapons_data = (
-#             self.coordinator.data.get(self.username, {}).get("weapons", [])
-#         )
-#         lookup = self.coordinator.data.get("lookup")
-
-#         self.attrs.update()
-#         self._state =
-#         self.async_write_ha_state()
+        for item in weapon_data:
+            item_info = lookup.get(item.get("uniqueName").lower(), {})
+            if (item_info.get("type") and item_info.get("type") == self.type):
+                equip_time = item.get("equiptime", 0.0)
+                weapons.append(item)
+                if most_equip_time < equip_time:
+                    most_equip_time = equip_time
+                    most_used_key = item.get("uniqueName")
 
 
-def _get_weapon_type(itemKey, lookup):
-    print("get_weapon_type")
+        self._attr_extra_state_attributes = {self.type: weapons}
+        self._attr_native_value =_get_partial_lookup(most_used_key, lookup, {}).get("value")
+        self.async_write_ha_state()
 
 def _check_hard_mode(nodeKey):
     return True if nodeKey.endswith("_HM") else False

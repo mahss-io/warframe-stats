@@ -1,36 +1,34 @@
 from datetime import timedelta
 import logging
 import socket
-import aiohttp
 
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.core import Event, callback, CALLBACK_TYPE
-from homeassistant.const import CONF_HOST, EVENT_HOMEASSISTANT_STOP
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+import aiohttp
 from yarl import URL
+
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import CALLBACK_TYPE, Event, callback
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 _LOGGER = logging.getLogger(__name__)
 
 from .const import (
+    ITEM_SETS_TO_INCLUDE,
     URL_BASE,
+    URL_PRE_PROFILE_ENDPOINT,
+    URL_STATIC_DATA_LOOKUP,
+    URL_STATIC_DATA_LOOKUP_QUERY_PARAMS,
+    URL_STATS_ENDPOINT,
     URL_TRANSLATION_FACTIONS_ENDPOINT,
     URL_TRANSLATION_FISSURE_MODIFERS_ENDPOINT,
     URL_TRANSLATION_MISSION_TYPES_ENDPOINT,
     URL_TRANSLATION_OTHER_ENDPOINT,
-    URL_TRANSLATION_WARFRAME_ENDPOINT,
     URL_TRANSLATION_SOL_NODES_ENDPOINT,
     URL_TRANSLATION_SORTIES_ENDPOINT,
     URL_TRANSLATION_SYNDICATES_ENDPOINT,
+    URL_TRANSLATION_WARFRAME_ENDPOINT,
     URL_WORLD_STATE_ENDPOINT,
-    URL_PRE_PROFILE_ENDPOINT,
-    URL_STATS_ENDPOINT,
-    URL_STATIC_ITEM_ENDPOINT,
-    URL_STATIC_DATA_LOOKUP,
-    URL_STATIC_DATA_LOOKUP_QUERY_PARAMS,
-    ITEM_SETS_TO_INCLUDE
 )
-
 
 class WarframeStaticDataUpdateCoordinator(DataUpdateCoordinator):
     def __init__(self, hass, entry):
@@ -62,12 +60,13 @@ class WarframeStaticDataUpdateCoordinator(DataUpdateCoordinator):
         static_data = await _makeRequest(f"{URL_BASE}{URL_STATIC_DATA_LOOKUP}{",".join(ITEM_SETS_TO_INCLUDE)}{URL_STATIC_DATA_LOOKUP_QUERY_PARAMS}", session)
         for item in static_data:
             match item.get("category"):
-                case "Warframe":
+                case "Warframes":
                     # warframe
                     self.name_lookup.update({
                         item.get("uniqueName"): {
                             "value": item.get("name"),
-                            "description": item.get("description")
+                            "description": item.get("description"),
+                            "type": "warframe"
                         }
                     })
                     # abilities
@@ -75,7 +74,8 @@ class WarframeStaticDataUpdateCoordinator(DataUpdateCoordinator):
                         self.name_lookup.update({
                         ability.get("uniqueName"): {
                             "value": ability.get("name"),
-                            "description": ability.get("description")
+                            "description": ability.get("description"),
+                            "type": "ability"
                             }
                         })
                 case "Archwing":
@@ -83,7 +83,8 @@ class WarframeStaticDataUpdateCoordinator(DataUpdateCoordinator):
                     self.name_lookup.update({
                         item.get("uniqueName"): {
                             "value": item.get("name"),
-                            "description": item.get("description")
+                            "description": item.get("description"),
+                            "type": "archwing"
                         }
                     })
                     # abilities
@@ -91,7 +92,8 @@ class WarframeStaticDataUpdateCoordinator(DataUpdateCoordinator):
                         self.name_lookup.update({
                         ability.get("uniqueName"): {
                             "value": ability.get("name"),
-                            "description": ability.get("description")
+                            "description": ability.get("description"),
+                            "type": "ability"
                             }
                         })
                 case "Sentinels":
@@ -99,23 +101,27 @@ class WarframeStaticDataUpdateCoordinator(DataUpdateCoordinator):
                     self.name_lookup.update({
                         item.get("uniqueName"): {
                             "value": item.get("name"),
-                            "description": item.get("description")
+                            "description": item.get("description"),
+                            "type": "companion"
                         }
                     })
                 case "Pets":
                     # pet
-                    self.name_lookup.update({
-                        item.get("uniqueName"): {
-                            "value": item.get("name"),
-                            "description": item.get("description")
-                        }
-                    })
+                    if item.get("type") and item.get("type") == "Pet":
+                        self.name_lookup.update({
+                            item.get("uniqueName"): {
+                                "value": item.get("name"),
+                                "description": item.get("description"),
+                                "type": "companion"
+                            }
+                        })
                 case "Primary":
                     # primary
                     self.name_lookup.update({
                         item.get("uniqueName"): {
                             "value": item.get("name"),
-                            "description": item.get("description")
+                            "description": item.get("description"),
+                            "type": "primary" if item.get("type") and item.get("type") != "Companion Weapon" else "companion-weapon",
                         }
                     })
                 case "Secondary":
@@ -123,7 +129,8 @@ class WarframeStaticDataUpdateCoordinator(DataUpdateCoordinator):
                     self.name_lookup.update({
                         item.get("uniqueName"): {
                             "value": item.get("name"),
-                            "description": item.get("description")
+                            "description": item.get("description"),
+                            "type": "secondary"
                         }
                     })
                 case "Melee":
@@ -131,7 +138,8 @@ class WarframeStaticDataUpdateCoordinator(DataUpdateCoordinator):
                     self.name_lookup.update({
                         item.get("uniqueName"): {
                             "value": item.get("name"),
-                            "description": item.get("description")
+                            "description": item.get("description"),
+                            "type": "melee"
                         }
                     })
                 case "Arch-Gun":
@@ -139,7 +147,8 @@ class WarframeStaticDataUpdateCoordinator(DataUpdateCoordinator):
                     self.name_lookup.update({
                         item.get("uniqueName"): {
                             "value": item.get("name"),
-                            "description": item.get("description")
+                            "description": item.get("description"),
+                            "type": "arch-gun"
                         }
                     })
                 case "Arch-Melee":
@@ -147,7 +156,8 @@ class WarframeStaticDataUpdateCoordinator(DataUpdateCoordinator):
                     self.name_lookup.update({
                         item.get("uniqueName"): {
                             "value": item.get("name"),
-                            "description": item.get("description")
+                            "description": item.get("description"),
+                            "type": "arch-melee"
                         }
                     })
                 case "Enemy":
@@ -329,7 +339,6 @@ class WarframeWorldstateDataUpdateCoordinator(DataUpdateCoordinator):
                 await self._listen()
             except Exception as err:
                 self.last_update_success = False
-                self.async_update_listeners()
                 self.logger.error(err)
 
             # Ensure we are disconnected
