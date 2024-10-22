@@ -12,7 +12,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 _LOGGER = logging.getLogger(__name__)
 
-from .const import (
+from .const import (  # noqa: E402
     ITEM_SETS_TO_INCLUDE,
     URL_BASE,
     URL_PRE_PROFILE_ENDPOINT,
@@ -29,6 +29,7 @@ from .const import (
     URL_TRANSLATION_WARFRAME_ENDPOINT,
     URL_WORLD_STATE_ENDPOINT,
 )
+
 
 class WarframeStaticDataUpdateCoordinator(DataUpdateCoordinator):
     def __init__(self, hass, entry):
@@ -272,7 +273,6 @@ class WarframeStaticDataUpdateCoordinator(DataUpdateCoordinator):
                         )
         return orginized_warframe_ability_data
 
-
 class WarframeProfileDataUpdateCoordinator(DataUpdateCoordinator):
     def __init__(self, hass, entry):
         """Initialize the coordinator."""
@@ -289,7 +289,7 @@ class WarframeProfileDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         user_data = {}
-        for user in self.config.get("usernames", []):
+        for user in self.config.get("profiles", []):
             user_data.update(
                 {
                     user: await _makeRequest(
@@ -299,7 +299,6 @@ class WarframeProfileDataUpdateCoordinator(DataUpdateCoordinator):
                 }
             )
         return user_data
-
 
 class WarframeWorldstateDataUpdateCoordinator(DataUpdateCoordinator):
     def __init__(self, hass, entry):

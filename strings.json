@@ -2,11 +2,14 @@
   "config": {
     "step": {
       "user": {
-        "title": "Which Domains would you like to pull data for?",
+        "title": "Warframe Statistics",
+        "description": "Get data from the worldstate and mutliple specific users.",
         "data": {
-          "worldstates": "Worldstate Data",
-          "profiles": "Specific Player Data",
-          "static_items": "Static Item Data"
+          "worldstates": "Worldstate",
+          "profiles": "Username"
+        },
+        "data_description": {
+          "profiles": "Usernames"
         }
       },
       "worldstates": {

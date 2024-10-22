@@ -7,10 +7,11 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
 from .coordinator import (
+    WarframeProfileDataUpdateCoordinator,
     WarframeStaticDataUpdateCoordinator,
     WarframeWorldstateDataUpdateCoordinator,
-    WarframeProfileDataUpdateCoordinator
 )
+
 # TODO List the platforms that you want to support.
 # For your initial PR, limit it to 1 platform.
 PLATFORMS: list[Platform] = [Platform.SENSOR]

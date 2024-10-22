@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from homeassistant.components.sensor import (
     RestoreSensor,
@@ -15,17 +14,27 @@ from homeassistant.const import MATCH_ALL, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.event import async_track_point_in_utc_time
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 import homeassistant.util.dt as dt_util
 
 from .const import DOMAIN
+from .coordinator import (
+    WarframeStaticDataUpdateCoordinator,
+    WarframeWorldstateDataUpdateCoordinator,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 1
 
 IGNORED_STATES = {STATE_UNAVAILABLE, STATE_UNKNOWN}
+
+location_to_people_map = {
+    "cetus": "ostrons",
+    "cambion": "entrati",
+    "zariman": "the holdfasts",
+    "vallis": "solaris united"
+}
 
 worldstate_device = DeviceInfo(
             identifiers={(DOMAIN, "worldstates")},
@@ -64,53 +73,34 @@ async def async_setup_entry(
 
     if config.get("worldstates"):
         sensors.append(LastUpdateSensor(worldstateCoordinator, staticDataCoordinator))
-        if config.get("alerts"):
-            sensors.append(AlertSensor(worldstateCoordinator))
-        if config.get("archon_hunt"):
-            sensors.append(ArchonHuntSensor(worldstateCoordinator))
-        if config.get("open_worlds"):
-            cycle_keys = []
-            for key in worldstateCoordinator.data.keys():
-                if key.endswith("Cycle"):
-                    cycle_keys.append(key)
-            for world_key in cycle_keys:
-                sensors.append(WorldSensor(worldstateCoordinator, world_key))
-        if config.get("relay_events"):
-            sensors.append(RelayEventSensor(worldstateCoordinator))
-        if config.get("events"):
-            sensors.append(EventSensor(worldstateCoordinator))
-        if config.get("fissures"):
-            sensors.append(FissureSensor(worldstateCoordinator, "regular"))
-            sensors.append(FissureSensor(worldstateCoordinator, "steel_path"))
-            sensors.append(FissureSensor(worldstateCoordinator, "void_storm"))
-        if config.get("invasions"):
-            sensors.append(InvasionSensor(worldstateCoordinator))
-        if config.get("sorties"):
-            sensors.append(SortieSensor(worldstateCoordinator))
-        if config.get("steel_path"):
-            sensors.append(SteelPathSensor(worldstateCoordinator))
-        if config.get("void_trader"):
-            sensors.append(VoidTraderSensor(worldstateCoordinator))
-        if config.get("varzia"):
-            sensors.append(VarziaSensor(worldstateCoordinator))
+        sensors.append(AlertSensor(worldstateCoordinator))
+        sensors.append(ArchonHuntSensor(worldstateCoordinator))
+        cycle_keys = []
+        for key in worldstateCoordinator.data.keys():
+            if key.endswith("Cycle"):
+                cycle_keys.append(key)
+        for world_key in cycle_keys:
+            sensors.append(WorldSensor(worldstateCoordinator, world_key))
+        sensors.append(RelayEventSensor(worldstateCoordinator))
+        sensors.append(EventSensor(worldstateCoordinator))
+        sensors.append(FissureSensor(worldstateCoordinator, "regular"))
+        sensors.append(FissureSensor(worldstateCoordinator, "steel_path"))
+        sensors.append(FissureSensor(worldstateCoordinator, "void_storm"))
+        sensors.append(InvasionSensor(worldstateCoordinator))
+        sensors.append(SortieSensor(worldstateCoordinator))
+        sensors.append(SteelPathSensor(worldstateCoordinator))
+        sensors.append(VoidTraderSensor(worldstateCoordinator))
+        sensors.append(VarziaSensor(worldstateCoordinator))
     if config.get("profiles"):
-        for username in config.get("usernames"):
-            if config.get("total_abilities_used"):
-                sensors.append(AbilitiesSensor(profileCoordinator, username, staticDataCoordinator))
-            if config.get("total_enemies_killed"):
-                sensors.append(EnemiesSensor(profileCoordinator, username, staticDataCoordinator))
-            if config.get("most_scans"):
-                sensors.append(ScansSensor(profileCoordinator, username, staticDataCoordinator))
-            if config.get("credits"):
-                sensors.append(CreditSensor(profileCoordinator, username))
-            if config.get("rank"):
-                sensors.append(RankSensor(profileCoordinator, username))
-            if config.get("death"):
-                sensors.append(DeathSensor(profileCoordinator, username, staticDataCoordinator))
-            if config.get("time_played"):
-                sensors.append(TimePlayedSensor(profileCoordinator, username))
-            if config.get("star_chart_completion"):
-                sensors.append(StarChartSensor(profileCoordinator, username, staticDataCoordinator))
+        for username in config.get("profiles"):
+            sensors.append(AbilitiesSensor(profileCoordinator, username, staticDataCoordinator))
+            sensors.append(EnemiesSensor(profileCoordinator, username, staticDataCoordinator))
+            sensors.append(ScansSensor(profileCoordinator, username, staticDataCoordinator))
+            sensors.append(CreditSensor(profileCoordinator, username))
+            sensors.append(RankSensor(profileCoordinator, username))
+            sensors.append(DeathSensor(profileCoordinator, username, staticDataCoordinator))
+            sensors.append(TimePlayedSensor(profileCoordinator, username))
+            sensors.append(StarChartSensor(profileCoordinator, username, staticDataCoordinator))
             for type in most_used_types:
                 sensors.append(MostUsedSensor(profileCoordinator, username, staticDataCoordinator, type))
 
@@ -160,6 +150,10 @@ class ProfileSensor(BaseWarframeSensor):
             identifiers={(*profile_device_base_identifiers, username)},
             name=profile_device_base_name + username
         )
+
+    async def async_added_to_hass(self) -> None:
+        """Restore state on startup."""
+        await super().async_added_to_hass()
 
 
 class AlertSensor(WorldStateSesnor):
@@ -236,6 +230,7 @@ class WorldSensor(WorldStateSesnor):
 
         self.world_name = world_key.replace("Cycle", "")
         self.world_key = world_key
+        self.syndicate = location_to_people_map.get(self.world_name.lower())
         self._attr_name = self.world_name.capitalize() + " Cycle"
         self._attr_unique_id = f"{self._base_id}{self._worldstate_name}{self.world_name}_cycle"
         self.entity_id = self._attr_unique_id
@@ -272,13 +267,22 @@ class WorldSensor(WorldStateSesnor):
             self.coordinator.data
             .get(self.world_key, {})
         )
+        syndicate_mission_data = (
+            self.coordinator.data.get("syndicateMissions", [])
+        )
 
-        expiry = dt_util.parse_datetime(world_state_data.get("expiry", "2000-01-01T00:00:00.000Z"))
-        # if expiry < (dt_util.utcnow() + datetime.timedelta(hours=1)):
-        #     async_track_point_in_utc_time(
-        #         self.hass, self.async_update_at_time, expiry
-        #     )
-        self._attr_extra_state_attributes = {"expiry": expiry}
+        bounty_list = []
+
+        for syndicate in syndicate_mission_data:
+            if self.syndicate == syndicate.get("syndicate").lower():
+                for job in syndicate.get("jobs", []):
+                    bounty_list.append({
+                        "name": job.get("type"),
+                        "level_range": " - ".join(map(str, job.get("enemyLevels", []))),
+                        "stages": len(job.get("standingStages")),
+                        "rewards": job.get("rewardPool",[])
+                    })
+        self._attr_extra_state_attributes = {"bounties": bounty_list} if len(bounty_list) != 0 else {}
         self._attr_native_value = world_state_data.get("state")
         self.async_write_ha_state()
 
@@ -531,7 +535,7 @@ class VarziaSensor(WorldStateSesnor):
 class LastUpdateSensor(WorldStateSesnor):
     _attr_icon = "mdi:newspaper"
 
-    def __init__(self, coordinator, staticDataCoordinator):
+    def __init__(self, coordinator: WarframeWorldstateDataUpdateCoordinator, staticDataCoordinator: WarframeStaticDataUpdateCoordinator):
         super().__init__(coordinator)
 
         self.staticDataCoordinator = staticDataCoordinator
@@ -555,9 +559,11 @@ class LastUpdateSensor(WorldStateSesnor):
                     newest_news_date = date
                     newest_news = news.get("message")
 
+        if self._attr_native_value != newest_news:
+            self.hass.async_create_task(self.staticDataCoordinator.async_refresh())
+
         self._attr_native_value = newest_news
         self.async_write_ha_state()
-
 
 
 class AbilitiesSensor(ProfileSensor):

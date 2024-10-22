@@ -36,11 +36,14 @@
             },
             "user": {
                 "data": {
-                    "profiles": "Specific Player Data",
-                    "static_items": "Static Item Data",
-                    "worldstates": "Worldstate Data"
+                    "profiles": "Username",
+                    "worldstates": "Worldstate"
                 },
-                "title": "Which Domains would you like to pull data for?"
+                "data_description": {
+                    "profiles": "Usernames"
+                },
+                "description": "Get data from the worldstate and mutliple specific users.",
+                "title": "Warframe Statistics"
             },
             "worldstates": {
                 "data": {
