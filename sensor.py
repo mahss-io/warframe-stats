@@ -63,7 +63,7 @@ async def async_setup_entry(
     sensors = []
 
     if config.get("worldstates"):
-        sensors.append(LastUpdateSensor(worldstateCoordinator))
+        sensors.append(LastUpdateSensor(worldstateCoordinator, staticDataCoordinator))
         if config.get("alerts"):
             sensors.append(AlertSensor(worldstateCoordinator))
         if config.get("archon_hunt"):
@@ -322,18 +322,23 @@ class EventSensor(WorldStateSesnor):
         )
 
         event_count = 0
-        event_data = {}
+        event_data = []
         for event in _data:
             event_count += 1
-            event_data.update({"name": event.get("description")})
+            event_data.append({
+                "name": event.get("description"),
+                "ends": event.get("expiry")
+                })
 
 
-        self._attr_extra_state_attributes = event_data
+        self._attr_extra_state_attributes = {"events": event_data}
         self._attr_native_value = event_count
         self.async_write_ha_state()
 
 class FissureSensor(WorldStateSesnor):
     _attr_icon = "mdi:ballot-outline"
+    _attr_native_value: int | None = 0
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, fissure_type):
         super().__init__(coordinator)
@@ -369,7 +374,7 @@ class FissureSensor(WorldStateSesnor):
                         "enemy": fissure.get("enemy"),
                         "tier": fissure.get("tier")
                     })
-                elif self.fissure_type == "regular":
+                elif (fissure.get("isHard") == False and fissure.get("isStorm") == False) and self.fissure_type == "regular":
                     count += 1
                     data.append({
                         "node": fissure.get("node"),
@@ -400,7 +405,7 @@ class InvasionSensor(WorldStateSesnor):
         count = 0
         data = []
         for invasion in _data:
-            if invasion.get("completed") != False:
+            if not invasion.get("completed"):
                 count += 1
                 data.append({
                     "node": invasion.get("node"),
@@ -526,9 +531,10 @@ class VarziaSensor(WorldStateSesnor):
 class LastUpdateSensor(WorldStateSesnor):
     _attr_icon = "mdi:newspaper"
 
-    def __init__(self, coordinator):
+    def __init__(self, coordinator, staticDataCoordinator):
         super().__init__(coordinator)
 
+        self.staticDataCoordinator = staticDataCoordinator
         self._attr_name = "Last Update"
         self._attr_unique_id = f"{self._base_id}{self._worldstate_name}last_update"
         self.entity_id = self._attr_unique_id
@@ -551,6 +557,7 @@ class LastUpdateSensor(WorldStateSesnor):
 
         self._attr_native_value = newest_news
         self.async_write_ha_state()
+
 
 
 class AbilitiesSensor(ProfileSensor):
@@ -582,12 +589,11 @@ class AbilitiesSensor(ProfileSensor):
                 "used": used
             })
 
-        self._attr_extra_state_attributes.update({"abilities": abilities_used})
+        self._attr_extra_state_attributes = {"abilities": abilities_used}
         self._attr_native_value = ability_count
         self.async_write_ha_state()
 
 class EnemiesSensor(ProfileSensor):
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_icon = "mdi:ammunition"
 
     def __init__(self, coordinator, username, staticDataCoordinator):
@@ -616,7 +622,7 @@ class EnemiesSensor(ProfileSensor):
                 "killed": killed
             })
 
-        self._attr_extra_state_attributes.update({"enemies_killed": enemies_killed})
+        self._attr_extra_state_attributes = {"enemies_killed": enemies_killed}
         self._attr_native_value = enemies_killed_count
         self.async_write_ha_state()
 
@@ -661,7 +667,7 @@ class ScansSensor(ProfileSensor):
                 "scans": scans
             })
 
-        self._attr_extra_state_attributes.update({"max_scanned": {"name":max_scan_item, "scans": max_scan_amount}, "items_scanned": items_scanned})
+        self._attr_extra_state_attributes = {"max_scanned": {"name":max_scan_item, "scans": max_scan_amount}, "items_scanned": items_scanned}
         self._attr_native_value = max_scan_item
         self.async_write_ha_state()
 
@@ -685,7 +691,7 @@ class CreditSensor(ProfileSensor):
             self.coordinator.data.get(self.username, {}).get("timePlayedSec", 0.0)
         )
 
-        self._attr_extra_state_attributes.update({"credits_per_hour": 0 if time_played_seconds_data == 0.0 else (credit_data/((time_played_seconds_data/60.0)/60.0))})
+        self._attr_extra_state_attributes = {"credits_per_hour": 0 if time_played_seconds_data == 0.0 else (credit_data/((time_played_seconds_data/60.0)/60.0))}
         self._attr_native_value = credit_data
         self.async_write_ha_state()
 
@@ -750,7 +756,7 @@ class DeathSensor(ProfileSensor):
                     "deaths": deaths
                 })
 
-        self._attr_extra_state_attributes.update({"player_kills": enemies_that_killed_player})
+        self._attr_extra_state_attributes = {"player_kills": enemies_that_killed_player}
         self._attr_native_value = death_data
         self.async_write_ha_state()
 
@@ -776,13 +782,13 @@ class TimePlayedSensor(ProfileSensor):
         days_played = hours_played/24.0
         months_played = days_played/30.44
 
-        self._attr_extra_state_attributes.update({
-            "seconds_played": time_played_data,
-            "minutes_played": seconds_played,
+        self._attr_extra_state_attributes = {
+            "seconds_played": seconds_played,
+            "minutes_played": minutes_played,
             "hours_played": hours_played,
             "days_played": days_played,
             "months_played": months_played,
-            })
+            }
         self._attr_native_value = round(hours_played, 2)
         self.async_write_ha_state()
 
@@ -811,7 +817,7 @@ class StarChartSensor(ProfileSensor):
         for mission in mission_data:
             nodeKey = mission.get("nodeKey")
             complete = True if mission.get("highScore") else False
-            nodeName = self.static_data.name_lookup.get(nodeKey.lower())
+            nodeName = self.static_data.name_lookup.get((nodeKey[:-3] if _check_hard_mode(nodeKey) else nodeKey).lower() )
             if nodeName:
                 total_missions += 1
                 if complete:
