@@ -58,6 +58,12 @@ class WarframeStaticDataUpdateCoordinator(DataUpdateCoordinator):
         self.name_lookup = {k.lower(): v for k, v in self.name_lookup.items()}
 
     async def _get_item_data(self, session):
+        # Gets some basic strings lookup
+        await self._update_lookup_if_valid(
+            await _makeRequest(f"{URL_BASE}{URL_TRANSLATION_OTHER_ENDPOINT}", session)
+        )
+
+        # Gets indepth naming data for items
         static_data = await _makeRequest(f"{URL_BASE}{URL_STATIC_DATA_LOOKUP}{",".join(ITEM_SETS_TO_INCLUDE)}{URL_STATIC_DATA_LOOKUP_QUERY_PARAMS}", session)
         for item in static_data:
             match item.get("category"):

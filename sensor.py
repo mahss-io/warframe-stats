@@ -876,11 +876,10 @@ class MostUsedSensor(ProfileSensor):
             item_info = lookup.get(item.get("uniqueName").lower(), {})
             if (item_info.get("type") and item_info.get("type") == self.type):
                 equip_time = item.get("equiptime", 0.0)
-                weapons.append(item)
+                weapons.append(item | {"name": item_info.get("value", item.get("uniqueName", "Unknown"))})
                 if most_equip_time < equip_time:
                     most_equip_time = equip_time
                     most_used_key = item.get("uniqueName")
-
 
         self._attr_extra_state_attributes = {self.type: weapons}
         self._attr_native_value =_get_partial_lookup(most_used_key, lookup, {}).get("value")
