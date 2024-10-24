@@ -368,7 +368,8 @@ class FissureSensor(WorldStateSesnor):
                         "node": fissure.get("node"),
                         "missionType": fissure.get("missionType"),
                         "enemy": fissure.get("enemy"),
-                        "tier": fissure.get("tier")
+                        "tier": fissure.get("tier"),
+                        "expiry": fissure.get("expiry", dt_util.now())
                     })
                 elif fissure.get("isHard") == True and self.fissure_type == "steel_path":
                     count += 1
@@ -376,7 +377,8 @@ class FissureSensor(WorldStateSesnor):
                         "node": fissure.get("node"),
                         "missionType": fissure.get("missionType"),
                         "enemy": fissure.get("enemy"),
-                        "tier": fissure.get("tier")
+                        "tier": fissure.get("tier"),
+                        "expiry": fissure.get("expiry", dt_util.now())
                     })
                 elif (fissure.get("isHard") == False and fissure.get("isStorm") == False) and self.fissure_type == "regular":
                     count += 1
@@ -384,7 +386,8 @@ class FissureSensor(WorldStateSesnor):
                         "node": fissure.get("node"),
                         "missionType": fissure.get("missionType"),
                         "enemy": fissure.get("enemy"),
-                        "tier": fissure.get("tier")
+                        "tier": fissure.get("tier"),
+                        "expiry": fissure.get("expiry", dt_util.now())
                     })
         self._attr_extra_state_attributes = {"fissures":data}
         self._attr_native_value = count
