@@ -13,7 +13,7 @@
 
 _Component to pull data from and create sensors for the game Warframe._
 
-# Warframe Stats does not require but I arbitrarily choose to have it support v2024.10.0 and above. Be sure to upgrade.
+#### Warframe Stats does not require but I arbitrarily choose to have it support v2024.10.0 and above. Be sure to upgrade. :D
 
 ## Installation
 ### HACS *(recommended)*
