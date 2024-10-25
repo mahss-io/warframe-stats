@@ -1,0 +1,33 @@
+alias: Notify Warframe Daily Sorties
+description: >-
+  Sends a Discord Message via a bot to specified users when the sorties rotation
+  has rolled over if rough estimated time is less than 10 mins
+triggers:
+  - trigger: state
+    entity_id:
+      - sensor.warframe_worldstate_sorties
+conditions:
+  - condition: template
+    value_template: "{{ sortie_rating < 10 }}"
+actions:
+  - action: notify.notifications # This is a discord bot
+    data:
+      target:
+        - "your-discord-user-id"
+      message: >
+        Todays Sorties missions are {{ missions | join(", ") }} with a time
+        estimate of around {{ sortie_rating }} mins
+variables:
+  missions: |
+    {{ state_attr('sensor.warframe_worldstate_sorties',
+      'missions') | map(attribute="missionType", default='Unknown') | list }}
+  sortie_rating: |
+    {{ missions | map("replace", "Sabotage", 2) |
+      map("replace", "Spy", 3) |  map("replace", "Survival", 11) |
+      map("replace",
+        "Capture", 1) |  map("replace", "Extermination", 1) |  map("replace",
+        "Assassination", 4) |  map("replace", "Free Roam", 3) |  map("replace",
+        "Mobile Defense", 6) | map("replace", "Defense", 12) |  map("replace",
+        "Rescue", 1) |  map("replace",
+        "Interception", 8) | map('int') | list | sum(start=0) }}
+mode: single

@@ -1,0 +1,22 @@
+alias: Notify Warframe Cambion Rewards
+description: "Sends a Discord Message via a bot to specified users when the Arcane Theorem Infection is present in the reward pool for the Cambion Drift"
+triggers:
+  - trigger: state
+    id: cambion-to-fass
+    entity_id:
+      - sensor.warframe_worldstate_cambion_cycle
+    to: fass
+conditions:
+  - condition: template
+    value_template: >-
+      {{ looking_for in (trigger.to_state.attributes.bounties |
+      map(attribute='rewards') | sum(start=[]) | unique | list) }}
+actions:
+  - action: notify.notifications # This is a discord bot
+    data:
+      target:
+        - "your-discord-user-id"
+      message: It is {{looking_for}} time for the next 2hr and 30mins!!!
+mode: single
+variables:
+  looking_for: Theorem Infection

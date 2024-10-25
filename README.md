@@ -1,7 +1,5 @@
 # Warframe Stats
-<picture>
-  <img alt="warframe Logo" width=250 src="https://www-static.warframe.com/images/warframe/lotus-icon.svg">
-</picture>
+<img alt="warframe Logo" width=250 src="https://www-static.warframe.com/images/warframe/lotus-icon.svg">
 
 [![GitHub Release](https://img.shields.io/github/release/mahss-io/warframe-stats.svg?style=for-the-badge)](https://github.com/mahss-io/warframe-stats/releases)
 [![GitHub Release Date](https://img.shields.io/github/release-date/mahss-io/warframe-stats?label=Last%20Release&style=for-the-badge)](#warframe-stats)

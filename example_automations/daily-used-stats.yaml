@@ -1,0 +1,108 @@
+# Automation
+alias: Notify Warframe Daily Time Diff
+description: "At 5 AM it takes the previous days most used stats compares them to the current usage stats then Saver Custom Integration updates the previous state of the entities"
+triggers:
+  - trigger: time
+    at: "05:00:00"
+conditions: []
+actions:
+  - sequence:
+      - action: script.create_message_from_last_most_used_state
+        metadata: {}
+        data:
+          most_used_entity: sensor.warframe_<user-id>_most_used_warframe
+        response_variable: message
+      - action: notify.notifications # This is a discord bot
+        data:
+          target:
+            - "your-discord-user-id"
+          message: "{{message.value}}"
+  - sequence:
+      - action: script.create_message_from_last_most_used_state
+        metadata: {}
+        data:
+          most_used_entity: sensor.warframe_<user-id>_most_used_primary
+        response_variable: message
+      - action: notify.notifications # This is a discord bot
+        data:
+          target:
+            - "your-discord-user-id"
+          message: "{{message.value}}"
+  - sequence:
+      - action: script.create_message_from_last_most_used_state
+        metadata: {}
+        data:
+          most_used_entity: sensor.warframe_<user-id>_most_used_secondary
+        response_variable: message
+      - action: notify.notifications # This is a discord bot
+        data:
+          target:
+            - "your-discord-user-id"
+          message: "{{message.value}}"
+  - sequence:
+      - action: script.create_message_from_last_most_used_state
+        metadata: {}
+        data:
+          most_used_entity: sensor.warframe_<user-id>_most_used_melee
+        response_variable: message
+      - action: notify.notifications # This is a discord bot
+        data:
+          target:
+            - "your-discord-user-id"
+          message: "{{message.value}}"
+  - action: saver.save_state
+    data:
+      entity_id:
+        - sensor.warframe_<user-id>_most_used_warframe
+        - sensor.warframe_<user-id>_most_used_primary
+        - sensor.warframe_<user-id>_most_used_secondary
+        - sensor.warframe_<user-id>_most_used_melee
+mode: single
+
+# Script
+alias: Create Message From Last Most Used State
+description: "Takes a most_used warframe sensor"
+variables:
+  return_message: >
+    {% set data = namespace(weapons=[], equip_times=[], message="") %}
+
+    {% set attr_key = (most_used_entity.split("_") | last) if
+    most_used_entity.split("_")[-2:][:1] != "arch" else
+    most_used_entity.split("_")[-2:].join("-") %}
+
+    {% set prev_data = saver_entity(most_used_entity, attr_key) %}
+
+    {% if prev_data and prev_data != 'null' and prev_data != None %}
+      {% for prev_weapon in prev_data %}
+        {% if prev_data.equiptime != None %}
+          {% set data.weapons = data.weapons + [prev_weapon.name if prev_weapon.name else prev_weapon.uniqueName] %}
+          {% set data.equip_times = data.equip_times + [(state_attr(most_used_entity, attr_key) | selectattr("uniqueName", "equalto" , prev_weapon.uniqueName) | map(attribute="equiptime") | first | default(0.0) - prev_weapon.get('equiptime', 0.0) ) ]%}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+
+
+    {% set total_play = data.equip_times | sum %}
+
+
+    {% for i in range(data.weapons | count) %}
+      {% if data.equip_times[i] != 0 %}
+         {% set data.message = data.message + ((data.weapons[i].split("/")[-1:][0]) + " for " + (((data.equip_times[i])/60) | round(2) | string) + " mins (" + ((data.equip_times[i]/total_play*100) | string) + "%), ") %}
+      {% endif %}
+    {% endfor %}
+
+    {% if (data.message[:-2] | length) > 3 %}
+      {{ {"value": attr_key.capitalize() + ": You used " + data.message[:-2] + "." } }}
+    {% else %}
+      {{ {"value": "" } }}
+    {% endif %}
+sequence:
+  - stop: End of Script
+    response_variable: return_message
+icon: mdi:set-all
+fields:
+  most_used_entity:
+    selector:
+      entity: {}
+    name: Most Used Entity
+    required: true
