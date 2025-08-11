@@ -67,7 +67,7 @@ async def async_setup_entry(
 
     staticDataCoordinator = config["coordinator"][0]
     worldstateCoordinator = config["coordinator"][1]
-    profileCoordinator = config["coordinator"][2]
+    # profileCoordinator = config["coordinator"][2]
 
     sensors = []
 
@@ -91,18 +91,23 @@ async def async_setup_entry(
         sensors.append(SteelPathSensor(worldstateCoordinator))
         sensors.append(VoidTraderSensor(worldstateCoordinator))
         sensors.append(VarziaSensor(worldstateCoordinator))
-    if config.get("profiles"):
-        for username in config.get("profiles"):
-            sensors.append(AbilitiesSensor(profileCoordinator, username, staticDataCoordinator))
-            sensors.append(EnemiesSensor(profileCoordinator, username, staticDataCoordinator))
-            sensors.append(ScansSensor(profileCoordinator, username, staticDataCoordinator))
-            sensors.append(CreditSensor(profileCoordinator, username))
-            sensors.append(RankSensor(profileCoordinator, username))
-            sensors.append(DeathSensor(profileCoordinator, username, staticDataCoordinator))
-            sensors.append(TimePlayedSensor(profileCoordinator, username))
-            sensors.append(StarChartSensor(profileCoordinator, username, staticDataCoordinator))
-            for type in most_used_types:
-                sensors.append(MostUsedSensor(profileCoordinator, username, staticDataCoordinator, type))
+        sensors.append(DeepArchimedeaSensor(worldstateCoordinator))
+        sensors.append(TemporalArchimedeaSensor(worldstateCoordinator))
+    # if config.get("profiles"):
+    #     for account_id in config.get("profiles"):
+    #         u_username = profileCoordinator.data.get(account_id, {}).get("Results",[{}])[0].get("DisplayName", account_id+"")
+    #         username = u_username[:len(u_username)-1]
+
+    #         sensors.append(AbilitiesSensor(profileCoordinator, username, staticDataCoordinator))
+    #         sensors.append(EnemiesSensor(profileCoordinator, username, staticDataCoordinator))
+    #         sensors.append(ScansSensor(profileCoordinator, username, staticDataCoordinator))
+    #         sensors.append(CreditSensor(profileCoordinator, username))
+    #         sensors.append(RankSensor(profileCoordinator, username))
+    #         sensors.append(DeathSensor(profileCoordinator, username, staticDataCoordinator))
+    #         sensors.append(TimePlayedSensor(profileCoordinator, username))
+    #         sensors.append(StarChartSensor(profileCoordinator, username, staticDataCoordinator))
+    #         for item_type in most_used_types:
+    #             sensors.append(MostUsedSensor(profileCoordinator, username, staticDataCoordinator, item_type))
 
     async_add_entities(sensors, True)
 
@@ -154,6 +159,7 @@ class ProfileSensor(BaseWarframeSensor):
     async def async_added_to_hass(self) -> None:
         """Restore state on startup."""
         await super().async_added_to_hass()
+        
 
 
 class AlertSensor(WorldStateSesnor):
@@ -283,7 +289,7 @@ class WorldSensor(WorldStateSesnor):
                         "rewards": job.get("rewardPool",[])
                     })
         self._attr_extra_state_attributes = {"bounties": bounty_list} if len(bounty_list) != 0 else {}
-        self._attr_native_value = world_state_data.get("state")
+        self._attr_native_value = world_state_data.get("state", "world state").capitalize()
         self.async_write_ha_state()
 
 class RelayEventSensor(WorldStateSesnor):
@@ -568,6 +574,76 @@ class LastUpdateSensor(WorldStateSesnor):
         self._attr_native_value = newest_news
         self.async_write_ha_state()
 
+class DeepArchimedeaSensor(WorldStateSesnor):
+    _attr_icon = "mdi:calendar-today"
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+
+        self._attr_name = "Deep Archimedea"
+        self._attr_unique_id = f"{self._base_id}{self._worldstate_name}deep_archimedea"
+        self.entity_id = self._attr_unique_id
+
+    @callback
+    def _handle_coordinator_update(self):
+        _data = (
+            self.coordinator.data.get("deepArchimedea", {})
+        )
+
+        missions = _data.get("missions", {})
+
+        missions_data = []
+        state = ""
+        index = 0
+        for mission in missions:
+            mission_name =  mission.get("mission", "Unknown")
+            missions_data.append({
+                "missionType": mission_name
+            })
+            state += mission_name
+            if index < len(missions)-1:
+                state += " - "
+            index += 1
+
+        self._attr_extra_state_attributes = {"missions": missions_data}
+        self._attr_native_value = state
+        self.async_write_ha_state()
+
+class TemporalArchimedeaSensor(WorldStateSesnor):
+    _attr_icon = "mdi:calendar-today"
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+
+        self._attr_name = "Temporal Archimedea"
+        self._attr_unique_id = f"{self._base_id}{self._worldstate_name}temportal_archimedea"
+        self.entity_id = self._attr_unique_id
+
+    @callback
+    def _handle_coordinator_update(self):
+        _data = (
+            self.coordinator.data.get("temporalArchimedea", {})
+        )
+
+        missions = _data.get("missions", {})
+
+        missions_data = []
+        state = ""
+        index = 0
+        for mission in missions:
+            mission_name =  mission.get("mission", "Unknown")
+            missions_data.append({
+                "missionType": mission_name
+            })
+            state += mission_name
+            if index < len(missions)-1:
+                state += " - "
+            index += 1
+
+        self._attr_extra_state_attributes = {"missions": missions_data}
+        self._attr_native_value = state
+        self.async_write_ha_state()
+
 
 class AbilitiesSensor(ProfileSensor):
     _attr_icon = "mdi:exclamation-thick"
@@ -583,13 +659,13 @@ class AbilitiesSensor(ProfileSensor):
     @callback
     def _handle_coordinator_update(self):
         user_ability_data = (
-            self.coordinator.data.get(self.username, {}).get("abilities", [])
+            self.coordinator.data.get(self.username, {}).get("Stats", {}).get("Abilities", [])
         )
 
         ability_count = 0
         abilities_used = []
         for ability in user_ability_data:
-            key = ability.get("uniqueName")
+            key = ability.get("type")
             used = int(ability.get("used", 0))
             ability_name = self.static_data.name_lookup.get(key.lower())
             ability_count += used
@@ -616,13 +692,13 @@ class EnemiesSensor(ProfileSensor):
     @callback
     def _handle_coordinator_update(self):
         user_enemie_data = (
-            self.coordinator.data.get(self.username, {}).get("enemies", [])
+            self.coordinator.data.get(self.username, {}).get("Stats", {}).get("Enemies", [])
         )
 
         enemies_killed_count = 0
         enemies_killed = []
         for enemy in user_enemie_data:
-            key = enemy.get("uniqueName")
+            key = enemy.get("type")
             killed = int(enemy.get("kills", 0))
             enemy_name = self.static_data.name_lookup.get(key.lower())
             enemies_killed_count += killed
@@ -657,14 +733,14 @@ class ScansSensor(ProfileSensor):
     @callback
     def _handle_coordinator_update(self):
         user_enemie_data = (
-            self.coordinator.data.get(self.username, {}).get("scans", [])
+            self.coordinator.data.get(self.username, {}).get("Stats", {}).get("Scans", [])
         )
 
         max_scan_amount = 0
         max_scan_item = ""
         items_scanned = []
         for enemy in user_enemie_data:
-            key = enemy.get("uniqueName")
+            key = enemy.get("type")
             scans = int(enemy.get("scans", 0))
             item_name = self.static_data.name_lookup.get(key.lower())
             if max_scan_amount < scans:
@@ -694,10 +770,10 @@ class CreditSensor(ProfileSensor):
     @callback
     def _handle_coordinator_update(self):
         credit_data = (
-            self.coordinator.data.get(self.username, {}).get("income", 0)
+            self.coordinator.data.get(self.username, {}).get("Stats", {}).get("Income", 0)
         )
         time_played_seconds_data = (
-            self.coordinator.data.get(self.username, {}).get("timePlayedSec", 0.0)
+            self.coordinator.data.get(self.username, {}).get("Stats", {}).get("TimePlayedSec", 0.0)
         )
 
         self._attr_extra_state_attributes = {"credits_per_hour": 0 if time_played_seconds_data == 0.0 else (credit_data/((time_played_seconds_data/60.0)/60.0))}
@@ -717,7 +793,7 @@ class RankSensor(ProfileSensor):
     @callback
     def _handle_coordinator_update(self):
         rank_data = (
-            self.coordinator.data.get(self.username, {}).get("playerLevel", 0)
+            self.coordinator.data.get(self.username, {}).get("Results",[{}])[0].get("PlayerLevel", 0)
         )
 
         rank = 0
@@ -726,7 +802,7 @@ class RankSensor(ProfileSensor):
             is_legendary = True
             rank = rank_data - 30
         time_played_seconds_data = (
-            self.coordinator.data.get(self.username, {}).get("timePlayedSec", 0)
+            self.coordinator.data.get(self.username, {}).get("Stats", {}).get("TimePlayedSec", 0.0)
         )
 
         # self._attr_extra_state_attributes.update({"rank_per_day": rank_data/(((time_played_seconds_data/60)/60)/24)})
@@ -748,16 +824,16 @@ class DeathSensor(ProfileSensor):
     @callback
     def _handle_coordinator_update(self):
         death_data = (
-            self.coordinator.data.get(self.username, {}).get("deaths", 0)
+            self.coordinator.data.get(self.username, {}).get("Stats", {}).get("Deaths", 0)
         )
         user_enemy_data = (
-            self.coordinator.data.get(self.username, {}).get("enemies", [])
+            self.coordinator.data.get(self.username, {}).get("Stats", {}).get("Enemies", [])
         )
 
         enemies_that_killed_player = []
         for enemy in user_enemy_data:
             if enemy.get("deaths"):
-                key = enemy.get("uniqueName")
+                key = enemy.get("type")
                 deaths = int(enemy.get("deaths", 0))
                 enemy_name = self.static_data.name_lookup.get(key.lower())
                 enemies_that_killed_player.append({
@@ -783,7 +859,7 @@ class TimePlayedSensor(ProfileSensor):
     @callback
     def _handle_coordinator_update(self):
         time_played_data = (
-            self.coordinator.data.get(self.username, {}).get("timePlayedSec", 0)
+            self.coordinator.data.get(self.username, {}).get("Stats", {}).get("TimePlayedSec", 0.0)
         )
         seconds_played = float(time_played_data)
         minutes_played = seconds_played/60.0
@@ -816,7 +892,7 @@ class StarChartSensor(ProfileSensor):
     @callback
     def _handle_coordinator_update(self):
         mission_data = (
-            self.coordinator.data.get(self.username, {}).get("missions", [])
+            self.coordinator.data.get(self.username, {}).get("Stats", {}).get("Missions", [])
         )
 
         total_missions = 0
@@ -824,7 +900,7 @@ class StarChartSensor(ProfileSensor):
         steel_path = []
         regular = []
         for mission in mission_data:
-            nodeKey = mission.get("nodeKey")
+            nodeKey = mission.get("type")
             complete = True if mission.get("highScore") else False
             nodeName = self.static_data.name_lookup.get((nodeKey[:-3] if _check_hard_mode(nodeKey) else nodeKey).lower() )
             if nodeName:
@@ -866,7 +942,7 @@ class MostUsedSensor(ProfileSensor):
     @callback
     def _handle_coordinator_update(self):
         weapon_data = (
-            self.coordinator.data.get(self.username, {}).get("weapons", [])
+            self.coordinator.data.get(self.username, {}).get("Stats", {}).get("Weapons", [])
         )
         lookup = self.static_data.name_lookup
 
@@ -876,13 +952,13 @@ class MostUsedSensor(ProfileSensor):
         weapons = []
 
         for item in weapon_data:
-            item_info = lookup.get(item.get("uniqueName").lower(), {})
+            item_info = lookup.get(item.get("type").lower(), {})
             if (item_info.get("type") and item_info.get("type") == self.type):
-                equip_time = item.get("equiptime", 0.0)
-                weapons.append(item | {"name": item_info.get("value", item.get("uniqueName", "Unknown"))})
+                equip_time = item.get("equipTime", 0.0)
+                weapons.append(item | {"name": item_info.get("value", item.get("type", "Unknown"))})
                 if most_equip_time < equip_time:
                     most_equip_time = equip_time
-                    most_used_key = item.get("uniqueName")
+                    most_used_key = item.get("type")
 
         self._attr_extra_state_attributes = {self.type: weapons}
         self._attr_native_value =_get_partial_lookup(most_used_key, lookup, {}).get("value")

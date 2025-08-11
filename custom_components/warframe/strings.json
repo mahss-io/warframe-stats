@@ -6,10 +6,10 @@
         "description": "Get data from the worldstate and mutliple specific users.",
         "data": {
           "worldstates": "Worldstate",
-          "profiles": "Username"
+          "profiles": "Account ID"
         },
         "data_description": {
-          "profiles": "Usernames"
+          "profiles": "Account ID's"
         }
       },
       "worldstates": {
@@ -31,7 +31,7 @@
       },
       "profiles": {
         "data": {
-          "usernames": "Username of Warframe profile to track",
+          "account_ids": "Account ID's of Warframe profiles to track",
           "total_abilities_used": "Track Total Abilities Used",
           "total_enemies_killed": "Track Enemies Killed",
           "most_scans": "Track Most Scans",

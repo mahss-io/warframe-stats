@@ -35,12 +35,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: WarframeStatsConfigEntry
     await staticDataCoordinator.async_config_entry_first_refresh()
     worldstateCoordinator = WarframeWorldstateDataUpdateCoordinator(hass, entry)
     await worldstateCoordinator.async_config_entry_first_refresh()
-    profileCoordinator = WarframeProfileDataUpdateCoordinator(hass, entry)
-    await profileCoordinator.async_config_entry_first_refresh()
+    # profileCoordinator = WarframeProfileDataUpdateCoordinator(hass, entry)
+    # await profileCoordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})
     hass_data = dict(entry.data)
-    hass_data.update({'coordinator': [staticDataCoordinator, worldstateCoordinator, profileCoordinator]})
+    hass_data.update({'coordinator': [staticDataCoordinator, worldstateCoordinator]})
     hass.data[DOMAIN][entry.entry_id] = hass_data
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

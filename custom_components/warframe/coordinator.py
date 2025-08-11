@@ -1,6 +1,7 @@
 from datetime import timedelta
 import logging
 import socket
+import json
 
 import aiohttp
 from yarl import URL
@@ -28,6 +29,9 @@ from .const import (  # noqa: E402
     URL_TRANSLATION_SYNDICATES_ENDPOINT,
     URL_TRANSLATION_WARFRAME_ENDPOINT,
     URL_WORLD_STATE_ENDPOINT,
+    URL_RAW_BASE,
+    URL_RAW_PROFILE_ENDPOINT,
+    URL_RAW_PROFILE_QUERY_PARAMS
 )
 
 
@@ -295,13 +299,19 @@ class WarframeProfileDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         user_data = {}
-        for user in self.config.get("profiles", []):
+        for account_id in self.config.get("profiles", []):
+            single_user_data = {}
+            try:
+                single_user_data = await _makeRequest(
+                        f"{URL_RAW_BASE}{URL_RAW_PROFILE_ENDPOINT}{URL_RAW_PROFILE_QUERY_PARAMS}{account_id}",
+                        self.session
+                    )
+            except Exception as err:
+                self.logger.info(f"Could not update get user data for account ID {account_id}: {err}")
+                continue
             user_data.update(
                 {
-                    user: await _makeRequest(
-                        f"{URL_BASE}{URL_PRE_PROFILE_ENDPOINT}{user}{URL_STATS_ENDPOINT}",
-                        self.session,
-                    )
+                    account_id: single_user_data
                 }
             )
         return user_data
@@ -431,14 +441,17 @@ class WarframeWorldstateDataUpdateCoordinator(DataUpdateCoordinator):
         return self.world_state_data
 
 
-async def _makeRequest(url, session):
+async def _makeRequest(url, session, logger=None):
     getHeaders = {}
     toReturn = {}
 
     try:
         async with session.get(url, headers=getHeaders, timeout=20) as getResponse:
             if getResponse.status == 200:
-                return await getResponse.json()
+                data = await getResponse.read()
+                if logger is not None:
+                    logger.info(data)
+                return json.loads(data)
     except Exception as err:
         raise UpdateFailed(f"Error fetching data: {err}")
     return toReturn

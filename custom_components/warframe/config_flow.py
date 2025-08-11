@@ -24,12 +24,12 @@ _LOGGER = logging.getLogger(__name__)
 STEP_INIT_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_WORLDSTATES): bool,
-        vol.Optional(CONF_PROFILES): TextSelector(
-            TextSelectorConfig(
-                type=TextSelectorType.TEXT,
-                multiple=True,
-            ),
-        )
+        # vol.Optional(CONF_PROFILES): TextSelector(
+        #     TextSelectorConfig(
+        #         type=TextSelectorType.TEXT,
+        #         multiple=True,
+        #     ),
+        # )
     }
 )
 
@@ -57,7 +57,7 @@ async def validate_worldstates_input(hass: HomeAssistant, data: dict[str, Any]) 
             return False
         return True
 async def validate_profiles_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
-        if data.get('usernames') == None:
+        if data.get('account_ids') == None:
             return False
         return True
 async def validate_static_items_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
@@ -100,7 +100,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 self._options.update(user_input)
                 self._worldstates = user_input.get("worldstates")
-                self._profiles = user_input.get("usernames")
+                self._profiles = user_input.get("account_ids")
                 return self.async_create_entry(title="Warframe Stats", data=self._options)
 
         return self.async_show_form(

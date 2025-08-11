@@ -20,6 +20,7 @@ CONF_VOID_TRADER = "void_trader"
 CONF_VARZIA = "varzia"
 
 CONF_USERNAMES = "usernames"
+CONF_ACCOUNT_IDS = "accound_ids"
 CONF_TOTAL_ABILITIES_USED = "total_abilities_used"
 CONF_TOTAL_ENEMIES_KILLED = "total_enemies_killed"
 CONF_MOST_SCANS = "most_scans"
@@ -50,6 +51,10 @@ URL_TRANSLATION_WARFRAME_ENDPOINT = "warframes"
 URL_STATIC_DATA_LOOKUP = "items/search/"
 ITEM_SETS_TO_INCLUDE = ["Warframe","Pets","Sentinels","Node","Enemy","Primary","Melee","Secondary","Arch-Melee","Arch-Gun","Archwing"]
 URL_STATIC_DATA_LOOKUP_QUERY_PARAMS = "?by=category"
+
+URL_RAW_BASE = "https://content.warframe.com/"
+URL_RAW_PROFILE_ENDPOINT = "dynamic/getProfileViewingData.php"
+URL_RAW_PROFILE_QUERY_PARAMS = "?playerId="
 
 URL_WORLD_STATE_ENDPOINT = "pc"
 URL_PRE_PROFILE_ENDPOINT = "profile/"
